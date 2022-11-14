@@ -9,6 +9,6 @@ import org.springframework.stereotype.Component;
 public class EmHelper {
 
 	@PersistenceContext
-	private EntityManager em;
+	public EntityManager em;
 
 }

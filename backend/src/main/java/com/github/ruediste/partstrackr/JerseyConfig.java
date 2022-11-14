@@ -4,12 +4,16 @@ import org.glassfish.jersey.server.ResourceConfig;
 import org.springframework.stereotype.Component;
 
 import com.github.ruediste.partstrackr.location.LocationRest;
+import com.github.ruediste.partstrackr.parameter.SiPrefixRest;
+import com.github.ruediste.partstrackr.part.PartRest;
 
 @Component
 public class JerseyConfig extends ResourceConfig {
 
 	public JerseyConfig() {
 		register(LocationRest.class);
+		register(PartRest.class);
+		register(SiPrefixRest.class);
 		register(CORSResponseFilter.class);
 	}
 

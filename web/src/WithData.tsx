@@ -1,21 +1,18 @@
 import useData, { UseDataArgs } from "./useData";
 
-export default function WithData<T>(props: UseDataArgs & { render: (value: T, trigger: () => void) => JSX.Element | null }) {
-    const { render, ...otherProps } = props;
-    const data = useData<T>(otherProps);
+export default function WithData<T>(
+  props: UseDataArgs & {
+    render: (value: T, trigger: () => void) => JSX.Element | null;
+  }
+) {
+  const { render, ...otherProps } = props;
+  const data = useData<T>(otherProps);
 
-    if (data.state === 'error') {
-        return <div className="alert alert-danger" role="alert">
-            Error loading data: {data.error}
-        </div>
-    }
-    if (data.state === 'loading') {
-        return <div className="spinner-border" role="status">
-            <span className="visually-hidden">Loading...</span>
-        </div>
-    }
-    if (data.state === 'success') {
-        return render(data.value, data.trigger);
-    }
-    throw Error('unsupported state');
+  if (data.placeholder !== undefined) {
+    return data.placeholder;
+  }
+  if (data.state === "success") {
+    return render(data.value, data.trigger);
+  }
+  throw Error("unsupported state");
 }

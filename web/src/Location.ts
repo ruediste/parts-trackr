@@ -1,15 +1,29 @@
-export type ParameterType='NUMBER'|'VALUE'|'TEST'|'CHOICE';
-export type Unit ='VOLT'| 'AMPERE'| 'WATT'| 'METER'
-export interface LocationParameterDefinition{
-    id: number
-    name: string
-    type: ParameterType
-    unit?: Unit
-    values: string[]
+export type ParameterType = "NUMBER" | "VALUE" | "TEXT" | "CHOICE";
+export type Unit =
+  | "VOLT"
+  | "AMPERE"
+  | "WATT"
+  | "METER"
+  | "WATT_HOURS"
+  | "AMPERE_HOURS"
+  | "OHM"
+  | "FARAD"
+  | "HENRY";
+
+export interface ParameterDefinitionBase {
+  id: number;
+  name: string;
+  type: ParameterType;
+  unit?: Unit;
+  values: string[];
 }
 
-export interface Location{
-    id: number;
-    name: string;
-    parameterDefinitions: LocationParameterDefinition[]
+export interface LocationParameterDefinition extends ParameterDefinitionBase {
+  id: number;
+}
+
+export interface Location {
+  id: number;
+  name: string;
+  parameterDefinitions: LocationParameterDefinition[];
 }

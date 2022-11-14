@@ -1,5 +1,8 @@
 package com.github.ruediste.partstrackr.location;
 
+import static java.util.stream.Collectors.toMap;
+
+import java.util.HashMap;
 import java.util.List;
 
 import javax.persistence.EntityManager;
@@ -40,6 +43,10 @@ public class LocationRest {
 	@POST
 	public Location add(Location newLocation) {
 		em.persist(newLocation);
+		for (var def : newLocation.parameterDefinitions) {
+			def.location = newLocation;
+			em.persist(def);
+		}
 		em.flush();
 		return newLocation;
 	}
@@ -60,6 +67,19 @@ public class LocationRest {
 	@Path("{id}")
 	public Location update(@PathParam("id") long id, Location newLocation) {
 		newLocation.id = id;
-		return em.merge(newLocation);
+		var location = em.find(Location.class, id);
+		var existingLocations = new HashMap<>(location.parameterDefinitions.stream().collect(toMap(x -> x.id, x -> x)));
+		em.merge(newLocation);
+		for (var def : newLocation.parameterDefinitions) {
+			def.location = location;
+			if (def.id == 0)
+				em.persist(def);
+			else {
+				em.merge(def);
+				existingLocations.remove(def.id);
+			}
+		}
+		existingLocations.values().forEach(def -> em.remove(def));
+		return location;
 	}
 }
