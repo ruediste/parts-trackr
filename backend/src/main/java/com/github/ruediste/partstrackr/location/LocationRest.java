@@ -54,7 +54,8 @@ public class LocationRest {
 	@GET
 	@Path("{id}")
 	public Location get(@PathParam("id") long id) {
-		return em.find(Location.class, id);
+		Location result = em.find(Location.class, id);
+		return result;
 	}
 
 	@DELETE

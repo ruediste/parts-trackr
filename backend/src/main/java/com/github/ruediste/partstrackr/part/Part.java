@@ -21,6 +21,8 @@ import javax.persistence.OneToMany;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.github.ruediste.partstrackr.Pair;
+import com.github.ruediste.partstrackr.inventory.InventoryEntry;
+import com.github.ruediste.partstrackr.inventory.InventoryEntry_;
 
 @Entity
 public class Part {
@@ -42,6 +44,9 @@ public class Part {
 
 	@OneToMany(mappedBy = PartParameterValue_.PART, fetch = FetchType.EAGER)
 	public Set<PartParameterValue> parameterValues = new HashSet<>();
+
+	@OneToMany(mappedBy = InventoryEntry_.PART, fetch = FetchType.EAGER)
+	public Set<InventoryEntry> inventoryEntries = new HashSet<>();
 
 	@ManyToOne
 	public PartParameterDefinition childNameParameterDefinition;
