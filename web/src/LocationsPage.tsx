@@ -11,32 +11,21 @@ import { WithEdit } from "./WithEdit";
 function EditLocation({ trigger }: { trigger: () => void }) {
   const { id } = useParams();
   const navigate = useNavigate();
+  const url = "api/location/" + id;
   return (
     <WithEdit<Location>
       key={id}
-      add={id === undefined}
-      addValue={{ parameterDefinitions: [], name: "", id: 0 }}
-      url={"api/location" + (id === undefined ? "" : "/" + id)}
-      render={({ bind, save }) => (
+      url={url}
+      render={({ bind }) => (
         <div>
-          <Button
-            variant="primary"
-            onClick={() => {
-              save(() => {
-                trigger();
-                navigate("..");
-              });
-            }}
-          >
-            {id === undefined ? "Add" : "Save"}
-          </Button>
           <Button variant="secondary" onClick={() => navigate("..")}>
             Cancel
           </Button>
           <Input label="Name" {...bind("name")} />
           <Form.Label>Parameter Definitions</Form.Label>
           <EditParameterDefinitions
-            {...bind("parameterDefinitions")}
+            url={url + "/parameterDefinition"}
+            onModified={trigger}
             generateAddValue={() => ({
               id: 0,
               name: "",
@@ -56,10 +45,6 @@ export default function LocationsPage() {
   const navigate = useNavigate();
 
   const details = useRoutes([
-    {
-      path: "add",
-      element: <EditLocation trigger={() => refresh.trigger()} />,
-    },
     {
       path: ":id",
       element: <EditLocation trigger={() => refresh.trigger()} />,

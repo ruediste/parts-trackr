@@ -1,27 +1,39 @@
 import { useEffect, useState } from "react";
 import { Button, Form, InputGroup, Table } from "react-bootstrap";
+import { toast } from "react-toastify";
 import { EditParameterDefinitions } from "./EditParameterDefinitions";
 import Input, { Select } from "./Input";
 import Part, { ParameterValuePMod, PartTreeItem, SubTree } from "./Part";
 import { SiPrefixInput } from "./siPrefix";
-import { Binding, useBinding, useForceUpdate } from "./useBinding";
-import { req, useRefreshTrigger } from "./useData";
+import { useBinding } from "./useBinding";
+import { post, req } from "./useData";
 import WithData from "./WithData";
 import { WithEdit } from "./WithEdit";
 
 interface PartPageCtx {
-  add: (parentId: number, onClose: () => void) => void;
-  edit: (id: number, onClose: () => void) => void;
+  add: (parentId: number | undefined, onModified: () => void) => void;
+  edit: (id: number, onModified: () => void) => void;
 }
 
 function EditParameterValue({
+  url,
   value,
   update,
 }: {
+  url: string;
   value: ParameterValuePMod;
   update: () => void;
 }) {
-  const bind = useBinding(value, { update });
+  const bind = useBinding(value, {
+    update: () =>
+      post(url)
+        .body(value)
+        .success(() => {
+          toast.success(value.definition.name + " updated");
+          update();
+        })
+        .send(),
+  });
   switch (value.definition.type) {
     case "TEXT":
       return <Input {...(bind("value") as any)} />;
@@ -42,105 +54,107 @@ function EditParameterValue({
 }
 
 function EditParameterValues({
-  binding,
+  url,
+  onModified,
 }: {
-  binding: Binding<ParameterValuePMod[]>;
+  url: string;
+  onModified: () => void;
 }) {
-  const update = useForceUpdate();
   return (
-    <>
-      <Table striped bordered hover>
-        <thead>
-          <tr>
-            <th>Name</th>
-            <th>Value</th>
-          </tr>
-        </thead>
-        <tbody>
-          {binding.get().map((p, idx) => {
-            return (
-              <tr key={idx}>
-                <td>{p.definition.name}</td>
-                <td>
-                  {p.id !== null ? (
-                    p.inherited ? (
-                      <>{p.value}</>
+    <WithData<ParameterValuePMod[]>
+      url={url}
+      render={(pMods, refresh) => (
+        <Table striped bordered hover>
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Value</th>
+            </tr>
+          </thead>
+          <tbody>
+            {pMods.map((p, idx) => {
+              return (
+                <tr key={idx}>
+                  <td>{p.definition.name}</td>
+                  <td>
+                    {p.id !== null ? (
+                      p.inherited ? (
+                        <>{p.value}</>
+                      ) : (
+                        <EditParameterValue
+                          value={p}
+                          update={() => {
+                            refresh();
+                            onModified();
+                          }}
+                          url={url + "/" + p.id}
+                        />
+                      )
+                    ) : null}
+                  </td>
+                  <td>
+                    {p.id === null || p.inherited ? (
+                      <Button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          post(url)
+                            .body({
+                              definition: p.definition,
+                            } as ParameterValuePMod)
+                            .success(() => {
+                              refresh();
+                              onModified();
+                            })
+                            .send();
+                        }}
+                      >
+                        <i className="bi bi-pencil"></i>{" "}
+                      </Button>
                     ) : (
-                      <EditParameterValue value={p} update={update} />
-                    )
-                  ) : null}
-                </td>
-                <td>
-                  {p.id === null || p.inherited ? (
-                    <Button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        p.id = 0;
-                        p.value = null;
-                        p.inherited = false;
-                        update();
-                      }}
-                    >
-                      <i className="bi bi-pencil"></i>{" "}
-                    </Button>
-                  ) : (
-                    <Button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        p.id = null;
-                        p.value = null;
-                        update();
-                      }}
-                    >
-                      <i className="bi bi-x"></i>{" "}
-                    </Button>
-                  )}
-                </td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </Table>
-    </>
+                      <Button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          req(url + "/" + p.id)
+                            .method("DELETE")
+                            .success(() => {
+                              refresh();
+                              onModified();
+                            })
+                            .send();
+                        }}
+                      >
+                        <i className="bi bi-x"></i>{" "}
+                      </Button>
+                    )}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </Table>
+      )}
+    />
   );
 }
 
 function EditPart({
   close,
   id,
-  parentId,
+  onModified,
 }: {
   close: () => void;
+  onModified: () => void;
   id?: number;
-  parentId?: number;
 }) {
+  const url = "api/part/" + id;
   return (
     <WithEdit<Part>
-      add={id === undefined}
-      addValue={{
-        name: "",
-        id: 0,
-        parentId,
-        parameterDefinitions: [],
-        parameterValues: [],
-        nameSetByParameterDefinition: false,
-        childNameParameterDefinitionId: null,
-      }}
-      url={"api/part" + (id === undefined ? "" : "/" + id)}
-      render={({ bind, save, value }) => (
+      url={url}
+      onSuccess={onModified}
+      render={({ bind, value }) => (
         <div>
-          <Button
-            variant="primary"
-            onClick={() => {
-              save(() => {
-                close();
-              });
-            }}
-          >
-            {id === undefined ? "Add" : "Save"}
-          </Button>
           <Button variant="secondary" onClick={() => close()}>
-            Cancel
+            Close
           </Button>
           <br />
           {value.nameSetByParameterDefinition ? null : (
@@ -159,7 +173,8 @@ function EditPart({
           />
           <Form.Label>Parameter Definitions</Form.Label>
           <EditParameterDefinitions
-            {...bind("parameterDefinitions")}
+            url={url + "/parameterDefinition"}
+            onModified={onModified}
             generateAddValue={() => ({
               id: 0,
               name: "",
@@ -168,7 +183,10 @@ function EditPart({
             })}
           />
           <Form.Label>Parameter Values</Form.Label>
-          <EditParameterValues {...bind("parameterValues")} />
+          <EditParameterValues
+            url={url + "/parameterValue"}
+            onModified={onModified}
+          />
         </div>
       )}
     />
@@ -189,12 +207,17 @@ function DisplaySubtree({
   return (
     <table className="table partTree" style={{ width: "100%" }}>
       <thead>
-        <th></th> {/* chevron */}
-        <th></th> {/* name */}
-        {subTree.columns.map((c) => (
-          <th>{c.label}</th>
-        ))}
-        <th></th> {/* actions */}
+        <tr>
+          <th></th>
+          {/* chevron */}
+          <th></th>
+          {/* name */}
+          {subTree.columns.map((c, idx) => (
+            <th key={idx}>{c.label}</th>
+          ))}
+          <th></th>
+          {/* actions */}
+        </tr>
       </thead>
       <tbody>
         {subTree.items.map((part) => (
@@ -285,7 +308,6 @@ function PartListEntry({
       </tr>
       {!expanded ? null : (
         <tr>
-          {" "}
           <td colSpan={part.cells.length + 3} style={{ borderTopWidth: "1px" }}>
             <WithData<SubTree>
               url={"api/part/" + part.id + "/children"}
@@ -310,10 +332,30 @@ function PartListEntry({
 
 export default function PartsPage() {
   const [edit, setEdit] = useState<{
-    id?: number;
-    parentId?: number;
-    onClose: () => void;
+    id: number;
+    onModified: () => void;
   }>();
+  const ctx: PartPageCtx = {
+    add: (parentId, onModified) => {
+      post("api/part")
+        .body({ parentId } as Partial<Part>)
+        .success((part: Part) => {
+          toast.success("Saved");
+          if (edit !== undefined) edit.onModified();
+          setEdit({
+            id: part.id,
+            onModified,
+          });
+        })
+        .error("Error while adding part")
+        .send();
+    },
+    edit: (id, onModified) => {
+      if (edit !== undefined) edit.onModified();
+      setEdit({ id, onModified });
+    },
+  };
+
   return (
     <WithData<SubTree>
       url="api/part/roots"
@@ -323,16 +365,13 @@ export default function PartsPage() {
             <Button
               onClick={(e) => {
                 e.stopPropagation();
-                setEdit({ onClose: trigger });
+                ctx.add(undefined, () => trigger());
               }}
             >
               <i className="bi bi-plus-circle"></i>
             </Button>
             <DisplaySubtree
-              ctx={{
-                add: (parentId, onClose) => setEdit({ parentId, onClose }),
-                edit: (id, onClose) => setEdit({ id, onClose }),
-              }}
+              ctx={ctx}
               refreshSubtree={trigger}
               refreshParent={trigger}
               subTree={rootTree}
@@ -340,13 +379,7 @@ export default function PartsPage() {
           </div>
           {edit === undefined ? null : (
             <div style={{ flexGrow: 1 }}>
-              <EditPart
-                {...edit}
-                close={() => {
-                  edit.onClose();
-                  setEdit(undefined);
-                }}
-              />
+              <EditPart {...edit} close={() => setEdit(undefined)} />
             </div>
           )}
         </div>

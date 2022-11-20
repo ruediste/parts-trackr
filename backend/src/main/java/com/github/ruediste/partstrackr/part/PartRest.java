@@ -23,6 +23,8 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
+import com.github.ruediste.partstrackr.Pair;
+
 @Component
 @Transactional
 @Path("api/part")
@@ -129,7 +131,6 @@ public class PartRest {
 		public Long parentId;
 		public String name;
 		public Long childNameParameterDefinitionId;
-		public List<PartParameterDefinition> parameterDefinitions = new ArrayList<>();
 		public List<PartParameterValuePMod> parameterValues = new ArrayList<>();
 		public boolean nameSetByParameterDefinition;
 	}
@@ -147,20 +148,6 @@ public class PartRest {
 		} else
 			part.childNameParameterDefinition = em.find(PartParameterDefinition.class,
 					pMod.childNameParameterDefinitionId);
-
-		{
-			var existingLocations = new HashMap<>(part.parameterDefinitions.stream().collect(toMap(x -> x.id, x -> x)));
-			for (var def : pMod.parameterDefinitions) {
-				def.part = part;
-				if (def.id == 0) {
-					em.persist(def);
-				} else {
-					em.merge(def);
-					existingLocations.remove(def.id);
-				}
-			}
-			existingLocations.values().forEach(em::remove);
-		}
 
 		{
 			var existingParameterValues = new HashMap<>(
@@ -195,10 +182,6 @@ public class PartRest {
 		Part part = new Part();
 		updatePart(part, pMod);
 		em.persist(part);
-		for (var def : pMod.parameterDefinitions) {
-			def.part = part;
-			em.persist(def);
-		}
 		em.flush();
 		return toPMod(part);
 	}
@@ -218,13 +201,109 @@ public class PartRest {
 		em.remove(part);
 	}
 
+	@GET
+	@Path("{id}/parameterDefinition")
+	public List<PartParameterDefinition> getParameterDefinitions(@PathParam("id") long id) {
+		return em.find(Part.class, id).parameterDefinitions.stream().sorted(Comparator.comparing(x -> x.name)).toList();
+	}
+
+	@POST
+	@Path("{partId}/parameterDefinition")
+	public PartParameterDefinition addParameterDefinition(@PathParam("partId") long partId,
+			PartParameterDefinition definition) {
+		definition.part = em.find(Part.class, partId);
+		em.persist(definition);
+		em.flush();
+		return definition;
+	}
+
+	@GET
+	@Path("{partId}/parameterDefinition/{definitionId}")
+	public PartParameterDefinition getParameterDefinition(@PathParam("partId") long partId,
+			@PathParam("definitionId") long definitionId) {
+		return em.find(PartParameterDefinition.class, definitionId);
+	}
+
+	@POST
+	@Path("{partId}/parameterDefinition/{definitionId}")
+	public PartParameterDefinition updateParameterDefinition(@PathParam("partId") long partId,
+			@PathParam("definitionId") long definitionId, PartParameterDefinition definition) {
+		definition.id = definitionId;
+		definition.part = em.find(Part.class, partId);
+		definition = em.merge(definition);
+		em.flush();
+		return definition;
+	}
+
+	@DELETE
+	@Path("{partId}/parameterDefinition/{definitionId}")
+	public void deleteParameterDefinition(@PathParam("partId") long partId,
+			@PathParam("definitionId") long definitionId) {
+		em.remove(em.find(PartParameterDefinition.class, definitionId));
+	}
+
+	@GET
+	@Path("{id}/parameterValue")
+	public List<PartParameterValuePMod> getParameterValues(@PathParam("id") long id) {
+		Part part = em.find(Part.class, id);
+		return part.getAllParameters().stream().map(pair -> toPMod(part, pair)).toList();
+	}
+
+	private PartParameterValuePMod toPMod(PartParameterValue value) {
+		return toPMod(value.part, Pair.of(value.definition, value));
+	}
+
+	private PartParameterValuePMod toPMod(Part part, Pair<PartParameterDefinition, PartParameterValue> pair) {
+		PartParameterValuePMod pvPMod = new PartParameterValuePMod();
+		pvPMod.definition = pair.getFirst();
+		if (pair.getSecond() != null) {
+			pvPMod.id = pair.getSecond().id;
+			pvPMod.value = pair.getSecond().value;
+			pvPMod.inherited = pair.getSecond().part != part;
+		}
+		return pvPMod;
+	}
+
+	@POST
+	@Path("{partId}/parameterValue")
+	public PartParameterValuePMod addParameterValue(@PathParam("partId") long partId,
+			PartParameterValuePMod valuePMod) {
+		PartParameterValue value = new PartParameterValue();
+		value.part = em.find(Part.class, partId);
+		value.definition = em.find(PartParameterDefinition.class, valuePMod.definition.id);
+		value.value = valuePMod.value;
+		em.persist(value);
+		em.flush();
+		return toPMod(value);
+	}
+
+	@GET
+	@Path("{partId}/parameterValue/{valueId}")
+	public PartParameterValuePMod getParameterValue(@PathParam("partId") long partId,
+			@PathParam("valueId") long valueId) {
+		return toPMod(em.find(PartParameterValue.class, valueId));
+	}
+
+	@POST
+	@Path("{partId}/parameterValue/{valueId}")
+	public PartParameterValuePMod updateParameterValue(@PathParam("partId") long partId,
+			@PathParam("valueId") long valueId, PartParameterValuePMod valuePMod) {
+		var value = em.find(PartParameterValue.class, valueId);
+		value.value = valuePMod.value;
+		return toPMod(value);
+	}
+
+	@DELETE
+	@Path("{partId}/parameterValue/{valueId}")
+	public void deleteParameterValue(@PathParam("partId") long partId, @PathParam("valueId") long valueId) {
+		em.remove(em.find(PartParameterValue.class, valueId));
+	}
+
 	public PartPMod toPMod(Part part) {
 		PartPMod pMod = new PartPMod();
 		pMod.id = part.id;
 		pMod.parentId = part.parent == null ? null : part.parent.id;
 		pMod.name = part.name;
-		pMod.parameterDefinitions = part.parameterDefinitions.stream().sorted(Comparator.comparing(x -> x.name))
-				.toList();
 
 		if (part.childNameParameterDefinition != null) {
 			pMod.childNameParameterDefinitionId = part.childNameParameterDefinition.id;
@@ -240,14 +319,7 @@ public class PartRest {
 		}
 
 		pMod.parameterValues = part.getAllParameters().stream().map(pair -> {
-			PartParameterValuePMod pvPMod = new PartParameterValuePMod();
-			pvPMod.definition = pair.getFirst();
-			if (pair.getSecond() != null) {
-				pvPMod.id = pair.getSecond().id;
-				pvPMod.value = pair.getSecond().value;
-				pvPMod.inherited = pair.getSecond().part != part;
-			}
-			return pvPMod;
+			return toPMod(part, pair);
 		}).toList();
 		return pMod;
 	}

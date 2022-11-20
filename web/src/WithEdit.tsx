@@ -1,48 +1,42 @@
-import { useEffect, useRef } from "react";
 import { toast } from "react-toastify";
 import { BindingFunction, useBinding } from "./useBinding";
 import { post } from "./useData";
 import WithData from "./WithData";
 
+export type EditRenderFunction<T> = (args: {
+  bind: BindingFunction<T>;
+  value: T;
+}) => JSX.Element | null;
+
 function RenderEdit<T>(props: {
   url: string;
   value: T;
-  render: (args: {
-    bind: BindingFunction<T>;
-    save: (onSuccess?: () => void) => void;
-    value: T;
-  }) => JSX.Element | null;
+  onSuccess?: () => void;
+  render: EditRenderFunction<T>;
 }) {
-  const bind = useBinding(props.value);
-  return props.render({
-    value: props.value,
-    bind,
-    save: (onSuccess) => {
+  const bind = useBinding(props.value, {
+    update: () => {
       post(props.url)
         .body(props.value)
         .success(() => {
           toast.success("Saved");
-          if (onSuccess !== undefined) onSuccess();
+          if (props.onSuccess !== undefined) props.onSuccess();
         })
         .error("Error during save")
         .send();
     },
   });
+  return props.render({
+    value: props.value,
+    bind,
+  });
 }
 
 export function WithEdit<T>(props: {
   url: string;
-  add?: boolean;
-  addValue?: T;
-  render: (args: {
-    bind: BindingFunction<T>;
-    save: (onSuccess?: () => void) => void;
-    value: T;
-  }) => JSX.Element | null;
+  onSuccess?: () => void;
+  render: EditRenderFunction<T>;
 }) {
-  if (props.add === true) {
-    return <RenderEdit value={props.addValue ?? ({} as any)} {...props} />;
-  }
   return (
     <WithData<T>
       url={props.url}

@@ -83,4 +83,42 @@ public class LocationRest {
 		existingLocations.values().forEach(def -> em.remove(def));
 		return location;
 	}
+
+	@GET
+	@Path("{id}/parameterDefinition")
+	public List<LocationParameterDefinition> getParameterDefinitions(@PathParam("id") long id) {
+		return em.find(Location.class, id).parameterDefinitions;
+	}
+
+	@POST
+	@Path("{id}/parameterDefinition")
+	public LocationParameterDefinition addParameterDefinitions(@PathParam("id") long id,
+			LocationParameterDefinition definition) {
+		definition.location = em.find(Location.class, id);
+		em.persist(definition);
+		em.flush();
+		return definition;
+	}
+
+	@GET
+	@Path("{id}/parameterDefinition/{definitionId}")
+	public LocationParameterDefinition getParameterDefinition(@PathParam("definitionId") long definitionId) {
+		return em.find(LocationParameterDefinition.class, definitionId);
+	}
+
+	@DELETE
+	@Path("{id}/parameterDefinition/{definitionId}")
+	public void deleteParameterDefinition(@PathParam("definitionId") long definitionId) {
+		var definition = em.find(LocationParameterDefinition.class, definitionId);
+		em.remove(definition);
+	}
+
+	@POST
+	@Path("{id}/parameterDefinition/{definitionId}")
+	public LocationParameterDefinition updateParameterDefinition(@PathParam("id") long id,
+			@PathParam("definitionId") long definitionId, LocationParameterDefinition definition) {
+		definition.id = definitionId;
+		definition.location = em.find(Location.class, id);
+		return em.merge(definition);
+	}
 }

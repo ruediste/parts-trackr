@@ -1,21 +1,36 @@
-import { ReactElement } from "react";
+import { ReactElement, useEffect, useState } from "react";
 import { Form, InputGroup } from "react-bootstrap";
 import { Binding, useForceUpdate } from "./useBinding";
+import { RefreshTrigger } from "./useData";
 
 export function Select<T>(props: {
   label?: string;
   options: { value: T; label: string }[];
   binding: Binding<T>;
+  reloadValue?: RefreshTrigger;
 }) {
-  const update = useForceUpdate();
+  const [value, setValue] = useState("");
+  const bindingValue = props.binding.get();
+  useEffect(() => {
+    setValue(bindingValue + "");
+  }, [bindingValue]);
+  useEffect(() => {
+    if (props.reloadValue !== undefined) {
+      const cb = () => setValue(props.binding.get() + "");
+      const reloadValue = props.reloadValue;
+      reloadValue.add(cb);
+      return () => reloadValue.remove(cb);
+    }
+  }, [props.reloadValue, props.binding]);
   return (
     <Form.Group className="mb-3">
       {props.label === undefined ? null : (
         <Form.Label>{props.label}</Form.Label>
       )}
       <Form.Select
-        value={"" + props.binding.get()}
-        onChange={(e) => props.binding.set(e.target.value as T).then(update)}
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
+        onBlur={(e) => props.binding.set(value as T)}
       >
         {props.options.map((opt, idx) => (
           <option key={idx} value={"" + opt.value}>
@@ -31,7 +46,7 @@ export interface InputPropsBase {
   label?: string;
   placeholder?: string;
   afterElement?: ReactElement;
-  onBlur?: () => void;
+  reloadValue?: RefreshTrigger;
 }
 
 export interface InputPropsString extends InputPropsBase {
@@ -46,6 +61,19 @@ export interface InputPropsNumber extends InputPropsBase {
 
 export default function Input(props: InputPropsString | InputPropsNumber) {
   const update = useForceUpdate();
+  const [value, setValue] = useState("");
+  const bindingValue = props.binding.get();
+  useEffect(() => {
+    setValue("" + (bindingValue ?? ""));
+  }, [bindingValue]);
+  useEffect(() => {
+    if (props.reloadValue !== undefined) {
+      const cb = () => setValue(props.binding.get() + "");
+      const reloadValue = props.reloadValue;
+      reloadValue.add(cb);
+      return () => reloadValue.remove(cb);
+    }
+  }, [props.reloadValue, props.binding]);
   return (
     <InputGroup className="mb-3">
       {props.label === undefined ? null : (
@@ -54,15 +82,13 @@ export default function Input(props: InputPropsString | InputPropsNumber) {
       <Form.Control
         type={props.type}
         placeholder={props.placeholder}
-        value={props.binding.get() ?? ""}
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
         onBlur={() => {
-          if (props.onBlur !== undefined) props.onBlur();
-        }}
-        onChange={(e) => {
           if (props.type === undefined || props.type === "text")
-            return props.binding.set(e.target.value).then(update);
+            return props.binding.set(value).then(update);
           else if (props.type === "number")
-            return props.binding.set(parseFloat(e.target.value)).then(update);
+            return props.binding.set(parseFloat(value)).then(update);
         }}
       />
       {props.afterElement}

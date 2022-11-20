@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import Input, { InputPropsBase } from "./Input";
 import { Binding } from "./useBinding";
-import { req } from "./useData";
+import { req, useRefreshTrigger } from "./useData";
 
 export interface SiPrefix {
   symbol: string;
@@ -35,61 +35,47 @@ export function SiPrefixInput(
   props: InputPropsBase & { binding: Binding<number | undefined | null> }
 ) {
   const { binding: incomingBinding, ...others } = props;
-
-  const [value, setValue] = useState("");
-  const [revertValue, setRevertValue] = useState("");
-
-  useEffect(() => {
-    const value = incomingBinding.get();
-    if (value === undefined || value === null) {
-      setValue("");
-      setRevertValue("");
-      return;
-    }
-    const prefix = getSiPrefix(value);
-    if (prefix === undefined) {
-      setValue("" + value);
-      setRevertValue("" + value);
-    } else {
-      const tmp = value / prefix.multiplier + prefix.character;
-      setValue(tmp);
-      setRevertValue(tmp);
-    }
-  }, [incomingBinding]);
-
+  const reloadValue = useRefreshTrigger();
   const binding: Binding<string> = {
     property: incomingBinding.property,
-    get: () => value,
+    get: () => {
+      const value = incomingBinding.get();
+      if (value === undefined || value === null) {
+        return "";
+      }
+      const prefix = getSiPrefix(value);
+      if (prefix === undefined) {
+        return "" + value;
+      } else {
+        return value / prefix.multiplier + prefix.character;
+      }
+    },
     set: (value) => {
-      setValue(value);
+      if (value === "") return incomingBinding.set(undefined);
+
+      if (!value.match(/^[+-]?\d*\.?\d*[a-zA-Z]?$/)) {
+        reloadValue.trigger();
+        return Promise.resolve();
+      }
+      const lastChar = value.charAt(value.length - 1);
+      if (lastChar >= "0" && lastChar <= "9") {
+        const parsed = parseFloat(value);
+        if (!isNaN(parsed)) {
+          return incomingBinding.set(parsed);
+        } else reloadValue.trigger();
+        return Promise.resolve();
+      }
+
+      const prefix = getSiPrefixForChar(lastChar);
+      const parsed =
+        parseFloat(value.substring(0, value.length - 1)) *
+        (prefix?.multiplier ?? 1);
+      if (!isNaN(parsed)) {
+        return incomingBinding.set(parsed);
+      } else reloadValue.trigger();
       return Promise.resolve();
     },
   };
 
-  return (
-    <Input
-      binding={binding}
-      {...others}
-      onBlur={() => {
-        if (value === "") return incomingBinding.set(undefined);
-        const lastChar = value.charAt(value.length - 1);
-        if (lastChar >= "0" && lastChar <= "9") {
-          const parsed = parseFloat(value);
-          if (!isNaN(parsed)) {
-            incomingBinding.set(parsed);
-            setRevertValue(value);
-          } else setValue(revertValue);
-          return;
-        }
-        const prefix = getSiPrefixForChar(lastChar);
-        const parsed =
-          parseFloat(value.substring(0, value.length - 1)) *
-          (prefix?.multiplier ?? 1);
-        if (!isNaN(parsed)) {
-          incomingBinding.set(parsed);
-          setRevertValue(value);
-        } else setValue(revertValue);
-      }}
-    />
-  );
+  return <Input binding={binding} reloadValue={reloadValue} {...others} />;
 }
