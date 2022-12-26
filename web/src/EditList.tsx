@@ -1,4 +1,4 @@
-import { ReactNode, useState } from "react";
+import { ReactNode, useEffect, useState } from "react";
 import { Button, Table } from "react-bootstrap";
 import { post, req } from "./useData";
 import WithData from "./WithData";
@@ -18,6 +18,11 @@ export function EditList<
   renderEdit: EditRenderFunction<TEdit>;
 }) {
   const [selected, setSelected] = useState<number>();
+
+  useEffect(() => {
+    setSelected(undefined);
+  }, [props.url]);
+
   return (
     <WithData<TListItem[]>
       url={props.url}

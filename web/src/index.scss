@@ -1,7 +1,19 @@
-@import '~bootstrap/scss/bootstrap.scss';
-@import '~bootstrap-icons/font/bootstrap-icons.scss';
+@import "~bootstrap/scss/bootstrap.scss";
+@import "~bootstrap-icons/font/bootstrap-icons.scss";
 
-.partTree td{
+.partTree {
+  &:not(.root) > tbody > tr > td {
+    &:nth-child(1) {
+      padding-left: 20px;
+    }
+  }
+
+  > tbody > tr > td {
     padding: 0px;
     border-bottom-width: 0px;
+  }
+
+  td > button {
+    margin-left: 4px;
+  }
 }

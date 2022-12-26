@@ -86,4 +86,27 @@ public class Part {
 		}
 		return map;
 	}
+
+	public boolean isNamedByChildNameParameter() {
+		return nameParameterDefinition() != null;
+	}
+
+	public PartParameterDefinition nameParameterDefinition() {
+		if (parent == null)
+			return null;
+		return parent.childNameParameterDefinition;
+	}
+
+	public String nameParameterValue() {
+		var definition = nameParameterDefinition();
+		if (definition == null)
+			return null;
+
+		var value = getAllParameterMap().get(definition);
+
+		if (value == null)
+			return null;
+		else
+			return value.value;
+	}
 }

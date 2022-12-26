@@ -1,5 +1,6 @@
 package com.github.ruediste.partstrackr.parameter;
 
+import java.util.Comparator;
 import java.util.Set;
 
 import javax.persistence.Column;
@@ -44,7 +45,17 @@ public class ParameterDefinitionBase {
 		}
 	}
 
+	public Comparator<String> comparator() {
+		if (type == ParameterType.VALUE) {
+			return Comparator.nullsLast(Comparator.comparing(value -> Double.parseDouble(value)));
+		}
+		return Comparator.nullsLast(Comparator.naturalOrder());
+	}
+
 	public String format(String value) {
+		if (value == null)
+			return null;
+
 		if (type == ParameterType.VALUE) {
 			var tmp = Double.parseDouble(value);
 			var prefix = SiPrefix.get(tmp);

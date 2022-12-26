@@ -23,7 +23,10 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.github.ruediste.partstrackr.Pair;
+import com.github.ruediste.partstrackr.inventory.InventoryEntry;
+import com.github.ruediste.partstrackr.location.Location;
 
 @Component
 @Transactional
@@ -69,16 +72,17 @@ public class PartRest {
 		var part = q.from(Part.class);
 		q.select(part);
 		q.where(cb.isNull(part.get(Part_.parent)));
-		return toSubTree(em.createQuery(q).getResultList());
+		return toSubTree(null, em.createQuery(q).getResultList());
 	}
 
 	@GET
 	@Path("{id}/children")
 	public SubTree children(@PathParam("id") long id) {
-		return toSubTree(em.find(Part.class, id).children);
+		Part parent = em.find(Part.class, id);
+		return toSubTree(parent, parent.children);
 	}
 
-	private SubTree toSubTree(Collection<Part> parts) {
+	private SubTree toSubTree(Part parent, Collection<Part> parts) {
 		SubTree result = new SubTree();
 		List<PartParameterDefinition> definitions = parts.stream().flatMap(x -> x.parameterValues.stream())
 				.map(x -> x.definition).distinct().sorted(Comparator.comparing(x -> x.name)).toList();
@@ -89,8 +93,16 @@ public class PartRest {
 			column.unit = x.unit == null ? null : x.unit.symbol;
 			return column;
 		}).toList();
-		result.items = parts.stream().map(t -> toTreeItem(t, definitions)).sorted(Comparator.comparing(x -> x.name))
-				.toList();
+
+		Comparator<Part> comparator;
+		if (parent != null && parent.childNameParameterDefinition != null) {
+			comparator = Comparator.comparing(child -> child.nameParameterValue(),
+					parent.childNameParameterDefinition.comparator());
+		} else {
+			comparator = Comparator.comparing(x -> x.name, Comparator.nullsLast(Comparator.naturalOrder()));
+		}
+
+		result.items = parts.stream().sorted(comparator).map(t -> toTreeItem(t, definitions)).toList();
 		return result;
 	}
 
@@ -108,12 +120,13 @@ public class PartRest {
 			return def.format(value.value);
 		}).toList();
 
-		if (part.parent != null && part.parent.childNameParameterDefinition != null) {
-			var value = part.getAllParameterMap().get(part.parent.childNameParameterDefinition);
+		var nameParameterDefinition = part.nameParameterDefinition();
+		if (nameParameterDefinition != null) {
+			var value = part.nameParameterValue();
 			if (value == null)
 				item.name = "";
 			else
-				item.name = value.definition.format(value.value);
+				item.name = nameParameterDefinition.format(value);
 		}
 
 		return item;
@@ -198,6 +211,8 @@ public class PartRest {
 	@Path("{id}")
 	public void delete(@PathParam("id") long id) {
 		var part = em.find(Part.class, id);
+		part.parameterDefinitions.forEach(x -> em.remove(x));
+		part.parameterValues.forEach(x -> em.remove(x));
 		em.remove(part);
 	}
 
@@ -324,4 +339,68 @@ public class PartRest {
 		return pMod;
 	}
 
+	public static class InventoryEntryPMod {
+		public String locationName;
+		public long id;
+		public int count;
+		public Long locationId;
+	}
+
+	@GET
+	@Path("{id}/inventoryEntry")
+	public List<InventoryEntryPMod> getInventoryEntries(@PathParam("id") long id) {
+		return em.find(Part.class, id).inventoryEntries.stream().sorted(Comparator.comparing(x -> x.location.name))
+				.map(this::toPMod).toList();
+	}
+
+	@POST
+	@Path("{id}/inventoryEntry")
+	public InventoryEntryPMod addInventoryEntry(@PathParam("id") long id, InventoryEntryPMod pMod) {
+		InventoryEntry entry = new InventoryEntry();
+		entry.part = em.find(Part.class, id);
+		updateEntry(entry, pMod);
+		em.persist(entry);
+		em.flush();
+		return toPMod(entry);
+	}
+
+	@GET
+	@Path("{id}/inventoryEntry/{entryId}")
+	public InventoryEntryPMod getInventoryEntry(@PathParam("id") long id, @PathParam("entryId") long entryId) {
+		return toPMod(em.find(InventoryEntry.class, entryId));
+	}
+
+	@POST
+	@Path("{id}/inventoryEntry/{entryId}")
+	public InventoryEntryPMod updateInventoryEntry(@PathParam("id") long id, @PathParam("entryId") long entryId,
+			InventoryEntryPMod pMod) {
+		var entry = em.find(InventoryEntry.class, entryId);
+		updateEntry(entry, pMod);
+		return toPMod(entry);
+	}
+
+	@DELETE
+	@Path("{id}/inventoryEntry/{entryId}")
+	public void deleteInventoryEntry(@PathParam("id") long id, @PathParam("entryId") long entryId) {
+		var entry = em.find(InventoryEntry.class, entryId);
+		em.remove(entry);
+	}
+
+	private void updateEntry(InventoryEntry entry, InventoryEntryPMod pMod) {
+		entry.count = pMod.count;
+		if (pMod.locationId != null) {
+			entry.location = em.find(Location.class, pMod.locationId);
+		}
+	}
+
+	private InventoryEntryPMod toPMod(InventoryEntry entry) {
+		var pMod = new InventoryEntryPMod();
+		pMod.id = entry.id;
+		if (entry.location != null) {
+			pMod.locationName = entry.location.name;
+			pMod.locationId = entry.location.id;
+		}
+		pMod.count = entry.count;
+		return pMod;
+	}
 }

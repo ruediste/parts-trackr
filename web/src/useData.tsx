@@ -14,8 +14,7 @@ const toQueryString = (obj: { [key: string]: string }) => {
   return "?" + params.toString();
 };
 
-export const baseUrl =
-  window.location.protocol + "//" + window.location.hostname + ":8080/";
+export const baseUrl = "/";
 
 export class Request {
   constructor(public url: string) {}

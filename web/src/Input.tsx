@@ -56,7 +56,7 @@ export interface InputPropsString extends InputPropsBase {
 
 export interface InputPropsNumber extends InputPropsBase {
   type: "number";
-  binding: Binding<number | undefined>;
+  binding: Binding<number>;
 }
 
 export default function Input(props: InputPropsString | InputPropsNumber) {

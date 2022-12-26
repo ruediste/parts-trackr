@@ -40,7 +40,16 @@ export function WithEdit<T>(props: {
   return (
     <WithData<T>
       url={props.url}
-      render={(value) => <RenderEdit value={value} {...props} />}
+      render={(value, trigger) => (
+        <RenderEdit
+          value={value}
+          {...props}
+          onSuccess={() => {
+            trigger();
+            if (props.onSuccess !== undefined) props.onSuccess();
+          }}
+        />
+      )}
     />
   );
 }

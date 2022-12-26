@@ -1,4 +1,3 @@
-import { useEffect, useState } from "react";
 import Input, { InputPropsBase } from "./Input";
 import { Binding } from "./useBinding";
 import { req, useRefreshTrigger } from "./useData";

@@ -1,14 +1,17 @@
 import { useEffect, useState } from "react";
 import { Button, Form, InputGroup, Table } from "react-bootstrap";
 import { toast } from "react-toastify";
+import { EditList } from "./EditList";
 import { EditParameterDefinitions } from "./EditParameterDefinitions";
 import Input, { Select } from "./Input";
 import Part, { ParameterValuePMod, PartTreeItem, SubTree } from "./Part";
 import { SiPrefixInput } from "./siPrefix";
 import { useBinding } from "./useBinding";
-import { post, req } from "./useData";
+import { post, req, useRefreshTrigger } from "./useData";
 import WithData from "./WithData";
 import { WithEdit } from "./WithEdit";
+import AsyncSelect from "react-select/async";
+import { Location } from "./Location";
 
 interface PartPageCtx {
   add: (parentId: number | undefined, onModified: () => void) => void;
@@ -137,6 +140,61 @@ function EditParameterValues({
   );
 }
 
+interface LocationOption {
+  value: number;
+  label: string;
+}
+interface InventoryEntryPMod {
+  id: number;
+  locationName: string;
+  count: number;
+  locationId: number | null;
+}
+export function EditInventoryEntries({
+  url,
+  onModified,
+}: {
+  url: string;
+  onModified: () => void;
+}) {
+  return (
+    <EditList<InventoryEntryPMod, InventoryEntryPMod>
+      columns={[
+        { label: "Location", render: (p) => p.locationName },
+        { label: "Count", render: (p) => "" + p.count },
+      ]}
+      url={url}
+      createAddValue={() => ({})}
+      renderEdit={({ bind, value }) => {
+        const bindLocationId = bind("locationId").binding;
+        return (
+          <>
+            <AsyncSelect<LocationOption>
+              loadOptions={(
+                inputValue: string,
+                callback: (options: LocationOption[]) => void
+              ) => {
+                req("api/location?name=" + encodeURIComponent(inputValue))
+                  .success((data: Location[]) =>
+                    callback(data.map((x) => ({ value: x.id, label: x.name })))
+                  )
+                  .send();
+              }}
+              value={
+                value.locationId == null
+                  ? null
+                  : { value: value.locationId, label: value.locationName }
+              }
+              onChange={(option) => bindLocationId.set(option?.value ?? null)}
+            />
+            <Input type="number" {...bind("count")} />
+          </>
+        );
+      }}
+    />
+  );
+}
+
 function EditPart({
   close,
   id,
@@ -144,7 +202,7 @@ function EditPart({
 }: {
   close: () => void;
   onModified: () => void;
-  id?: number;
+  id: number;
 }) {
   const url = "api/part/" + id;
   return (
@@ -187,6 +245,11 @@ function EditPart({
             url={url + "/parameterValue"}
             onModified={onModified}
           />
+          <Form.Label>Inventory Entries</Form.Label>
+          <EditInventoryEntries
+            url={url + "/inventoryEntry"}
+            onModified={onModified}
+          />
         </div>
       )}
     />
@@ -198,27 +261,31 @@ function DisplaySubtree({
   refreshParent,
   refreshSubtree,
   subTree,
+  isRoot = false,
 }: {
   ctx: PartPageCtx;
   subTree: SubTree;
   refreshParent: () => void;
   refreshSubtree: () => void;
+  isRoot?: boolean;
 }) {
   return (
-    <table className="table partTree" style={{ width: "100%" }}>
-      <thead>
-        <tr>
-          <th></th>
-          {/* chevron */}
-          <th></th>
-          {/* name */}
-          {subTree.columns.map((c, idx) => (
-            <th key={idx}>{c.label}</th>
-          ))}
-          <th></th>
-          {/* actions */}
-        </tr>
-      </thead>
+    <table className={"table partTree" + (isRoot ? " root" : "")}>
+      {subTree.columns.length === 0 ? null : (
+        <thead>
+          <tr>
+            <th></th>
+            {/* chevron */}
+            <th></th>
+            {/* name */}
+            {subTree.columns.map((c, idx) => (
+              <th key={idx}>{c.label}</th>
+            ))}
+            <th></th>
+            {/* actions */}
+          </tr>
+        </thead>
+      )}
       <tbody>
         {subTree.items.map((part) => (
           <PartListEntry
@@ -248,6 +315,7 @@ function PartListEntry({
   refreshSiblings: () => void;
   refreshParent: () => void;
 }) {
+  const refreshChildren = useRefreshTrigger();
   const [expanded, setExpanded] = useState(false);
   useEffect(() => {
     if (!part.hasChildren) setExpanded(false);
@@ -286,7 +354,7 @@ function PartListEntry({
             onClick={(e) => {
               e.stopPropagation();
               ctx.add(part.id, () => {
-                refreshSiblings();
+                refreshChildren.trigger();
                 setExpanded(true);
               });
             }}
@@ -311,6 +379,7 @@ function PartListEntry({
           <td colSpan={part.cells.length + 3} style={{ borderTopWidth: "1px" }}>
             <WithData<SubTree>
               url={"api/part/" + part.id + "/children"}
+              refresh={refreshChildren}
               render={(subTree, refreshSubtree) => (
                 <DisplaySubtree
                   ctx={ctx}
@@ -375,6 +444,7 @@ export default function PartsPage() {
               refreshSubtree={trigger}
               refreshParent={trigger}
               subTree={rootTree}
+              isRoot
             />
           </div>
           {edit === undefined ? null : (
