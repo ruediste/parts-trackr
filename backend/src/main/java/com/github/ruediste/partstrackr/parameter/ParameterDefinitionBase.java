@@ -65,4 +65,12 @@ public class ParameterDefinitionBase {
 		}
 		return value;
 	}
+
+	public void cleanup() {
+		if (type != ParameterType.VALUE) {
+			unit = null;
+		} else if (unit == null) {
+			unit = Unit.VOLT;
+		}
+	}
 }

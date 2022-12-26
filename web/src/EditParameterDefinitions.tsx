@@ -21,6 +21,9 @@ export function EditParameterDefinitions<T extends ParameterDefinitionBase>({
       ]}
       url={url}
       createAddValue={generateAddValue}
+      onPreSave={(def) => {
+        if (def.type === "VALUE" && def.unit === undefined) def.unit = "VOLT";
+      }}
       renderEdit={({ bind, value }) => {
         const commonInputs = (
           <>
@@ -28,6 +31,7 @@ export function EditParameterDefinitions<T extends ParameterDefinitionBase>({
             <Select<ParameterType>
               label="Type"
               {...bind("type")}
+              updateOnChange
               options={[
                 { label: "Text", value: "TEXT" },
                 { label: "Number", value: "NUMBER" },

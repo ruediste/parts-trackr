@@ -26,7 +26,9 @@ import org.springframework.util.StringUtils;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.github.ruediste.partstrackr.Pair;
 import com.github.ruediste.partstrackr.inventory.InventoryEntry;
+import com.github.ruediste.partstrackr.inventory.LocationParameterValue;
 import com.github.ruediste.partstrackr.location.Location;
+import com.github.ruediste.partstrackr.location.LocationParameterDefinition;
 
 @Component
 @Transactional
@@ -349,7 +351,9 @@ public class PartRest {
 	@GET
 	@Path("{id}/inventoryEntry")
 	public List<InventoryEntryPMod> getInventoryEntries(@PathParam("id") long id) {
-		return em.find(Part.class, id).inventoryEntries.stream().sorted(Comparator.comparing(x -> x.location.name))
+		return em.find(Part.class, id).inventoryEntries.stream()
+				.sorted(Comparator.comparing(x -> x.location,
+						Comparator.nullsLast(Comparator.comparing(location -> location.name))))
 				.map(this::toPMod).toList();
 	}
 

@@ -13,9 +13,11 @@ function RenderEdit<T>(props: {
   value: T;
   onSuccess?: () => void;
   render: EditRenderFunction<T>;
+  onPreSave?: (value: T) => void;
 }) {
   const bind = useBinding(props.value, {
     update: () => {
+      if (props.onPreSave !== undefined) props.onPreSave(props.value);
       post(props.url)
         .body(props.value)
         .success(() => {
@@ -36,6 +38,7 @@ export function WithEdit<T>(props: {
   url: string;
   onSuccess?: () => void;
   render: EditRenderFunction<T>;
+  onPreSave?: (value: T) => void;
 }) {
   return (
     <WithData<T>

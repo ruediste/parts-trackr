@@ -16,6 +16,7 @@ import javax.ws.rs.Produces;
 import javax.ws.rs.QueryParam;
 import javax.ws.rs.core.MediaType;
 
+import org.springframework.data.jpa.repository.Query;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -30,14 +31,17 @@ public class LocationRest {
 	private EntityManager em;
 
 	@GET
-	public List<Location> search(@QueryParam("name") String nameQuery) {
+	public List<Location> search(@QueryParam("name") String nameQuery, @QueryParam("maxCount") Integer maxCount) {
 		var cb = em.getCriteriaBuilder();
 		var q = cb.createQuery(Location.class);
 		var location = q.from(Location.class);
 		q.select(location);
 		if (StringUtils.hasText(nameQuery))
 			q.where(cb.like(location.get(Location_.name), "%" + nameQuery + "%"));
-		return em.createQuery(q).getResultList();
+		var typedQuery = em.createQuery(q);
+		if (maxCount != null)
+			typedQuery.setMaxResults(maxCount);
+		return typedQuery.getResultList();
 	}
 
 	@POST
@@ -95,6 +99,7 @@ public class LocationRest {
 	public LocationParameterDefinition addParameterDefinitions(@PathParam("id") long id,
 			LocationParameterDefinition definition) {
 		definition.location = em.find(Location.class, id);
+		definition.cleanup();
 		em.persist(definition);
 		em.flush();
 		return definition;
@@ -119,6 +124,7 @@ public class LocationRest {
 			@PathParam("definitionId") long definitionId, LocationParameterDefinition definition) {
 		definition.id = definitionId;
 		definition.location = em.find(Location.class, id);
+		definition.cleanup();
 		return em.merge(definition);
 	}
 }

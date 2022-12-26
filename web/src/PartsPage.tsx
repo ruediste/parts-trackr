@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Button, Form, InputGroup, Table } from "react-bootstrap";
+import { Button, Card, Form, InputGroup, Table } from "react-bootstrap";
 import { toast } from "react-toastify";
 import { EditList } from "./EditList";
 import { EditParameterDefinitions } from "./EditParameterDefinitions";
@@ -7,7 +7,7 @@ import Input, { Select } from "./Input";
 import Part, { ParameterValuePMod, PartTreeItem, SubTree } from "./Part";
 import { SiPrefixInput } from "./siPrefix";
 import { useBinding } from "./useBinding";
-import { post, req, useRefreshTrigger } from "./useData";
+import { post, RefreshTrigger, req, useRefreshTrigger } from "./useData";
 import WithData from "./WithData";
 import { WithEdit } from "./WithEdit";
 import AsyncSelect from "react-select/async";
@@ -59,15 +59,18 @@ function EditParameterValue({
 function EditParameterValues({
   url,
   onModified,
+  refresh,
 }: {
   url: string;
   onModified: () => void;
+  refresh?: RefreshTrigger;
 }) {
   return (
     <WithData<ParameterValuePMod[]>
       url={url}
+      refresh={refresh}
       render={(pMods, refresh) => (
-        <Table striped bordered hover>
+        <Table bordered hover>
           <thead>
             <tr>
               <th>Name</th>
@@ -150,13 +153,8 @@ interface InventoryEntryPMod {
   count: number;
   locationId: number | null;
 }
-export function EditInventoryEntries({
-  url,
-  onModified,
-}: {
-  url: string;
-  onModified: () => void;
-}) {
+export function EditInventoryEntries({ url }: { url: string }) {
+  const refresh = useRefreshTrigger();
   return (
     <EditList<InventoryEntryPMod, InventoryEntryPMod>
       columns={[
@@ -165,16 +163,23 @@ export function EditInventoryEntries({
       ]}
       url={url}
       createAddValue={() => ({})}
+      onPostSave={() => refresh.trigger()}
       renderEdit={({ bind, value }) => {
         const bindLocationId = bind("locationId").binding;
         return (
-          <>
+          <Form>
+            <Form.Label>Location</Form.Label>
             <AsyncSelect<LocationOption>
+              defaultOptions
               loadOptions={(
                 inputValue: string,
                 callback: (options: LocationOption[]) => void
               ) => {
-                req("api/location?name=" + encodeURIComponent(inputValue))
+                req(
+                  "api/location?name=" +
+                    encodeURIComponent(inputValue) +
+                    "&maxCount=10"
+                )
                   .success((data: Location[]) =>
                     callback(data.map((x) => ({ value: x.id, label: x.name })))
                   )
@@ -187,8 +192,15 @@ export function EditInventoryEntries({
               }
               onChange={(option) => bindLocationId.set(option?.value ?? null)}
             />
-            <Input type="number" {...bind("count")} />
-          </>
+
+            <Input type="number" label="Count" {...bind("count")} />
+            <Form.Label>Parameter Values</Form.Label>
+            <EditParameterValues
+              url={"api/inventoryEntry/" + value.id + "/parameterValue"}
+              onModified={() => {}}
+              refresh={refresh}
+            />
+          </Form>
         );
       }}
     />
@@ -229,27 +241,36 @@ function EditPart({
               })),
             ]}
           />
-          <Form.Label>Parameter Definitions</Form.Label>
-          <EditParameterDefinitions
-            url={url + "/parameterDefinition"}
-            onModified={onModified}
-            generateAddValue={() => ({
-              id: 0,
-              name: "",
-              type: "TEXT",
-              values: [],
-            })}
-          />
-          <Form.Label>Parameter Values</Form.Label>
-          <EditParameterValues
-            url={url + "/parameterValue"}
-            onModified={onModified}
-          />
-          <Form.Label>Inventory Entries</Form.Label>
-          <EditInventoryEntries
-            url={url + "/inventoryEntry"}
-            onModified={onModified}
-          />
+          <Card className="mb-3">
+            <Card.Body>
+              <Card.Title>Parameter Definitions</Card.Title>
+              <EditParameterDefinitions
+                url={url + "/parameterDefinition"}
+                onModified={onModified}
+                generateAddValue={() => ({
+                  id: 0,
+                  name: "",
+                  type: "TEXT",
+                  values: [],
+                })}
+              />
+            </Card.Body>
+          </Card>
+          <Card className="mb-3">
+            <Card.Body>
+              <Card.Title>Parameter Values</Card.Title>
+              <EditParameterValues
+                url={url + "/parameterValue"}
+                onModified={onModified}
+              />
+            </Card.Body>
+          </Card>
+          <Card>
+            <Card.Body>
+              <Card.Title>Inventory Entries</Card.Title>
+              <EditInventoryEntries url={url + "/inventoryEntry"} />
+            </Card.Body>
+          </Card>
         </div>
       )}
     />
@@ -429,7 +450,14 @@ export default function PartsPage() {
     <WithData<SubTree>
       url="api/part/roots"
       render={(rootTree, trigger) => (
-        <div style={{ display: "flex", columnGap: "10px" }}>
+        <div
+          style={{
+            display: "flex",
+            columnGap: "10px",
+            marginLeft: "4px",
+            marginRight: "4px",
+          }}
+        >
           <div style={{ flexGrow: 1 }}>
             <Button
               onClick={(e) => {
