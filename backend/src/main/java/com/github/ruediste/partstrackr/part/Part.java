@@ -1,7 +1,5 @@
 package com.github.ruediste.partstrackr.part;
 
-import static java.util.stream.Collectors.toMap;
-
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
@@ -10,6 +8,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import javax.persistence.Entity;
 import javax.persistence.FetchType;
@@ -21,6 +20,8 @@ import javax.persistence.OneToMany;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.github.ruediste.partstrackr.Pair;
+import com.github.ruediste.partstrackr.document.Document;
+import com.github.ruediste.partstrackr.document.Document_;
 import com.github.ruediste.partstrackr.inventory.InventoryEntry;
 import com.github.ruediste.partstrackr.inventory.InventoryEntry_;
 
@@ -48,6 +49,9 @@ public class Part {
 	@OneToMany(mappedBy = InventoryEntry_.PART, fetch = FetchType.EAGER)
 	public Set<InventoryEntry> inventoryEntries = new HashSet<>();
 
+	@OneToMany(mappedBy = Document_.PART, fetch = FetchType.EAGER)
+	public Set<Document> documents = new HashSet<>();
+
 	@ManyToOne
 	public PartParameterDefinition childNameParameterDefinition;
 
@@ -70,7 +74,7 @@ public class Part {
 	}
 
 	public Map<PartParameterDefinition, PartParameterValue> parameterMap() {
-		return parameterValues.stream().collect(toMap(x -> x.definition, x -> x));
+		return parameterValues.stream().collect(Collectors.toMap(x -> x.definition, x -> x));
 	}
 
 	public List<Pair<PartParameterDefinition, PartParameterValue>> getAllParameters() {

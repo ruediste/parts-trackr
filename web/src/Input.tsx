@@ -57,6 +57,7 @@ export interface InputPropsBase {
   placeholder?: string;
   afterElement?: ReactElement;
   reloadValue?: RefreshTrigger;
+  noMarginBottom?: boolean;
 }
 
 export interface InputPropsString extends InputPropsBase {
@@ -85,7 +86,7 @@ export default function Input(props: InputPropsString | InputPropsNumber) {
     }
   }, [props.reloadValue, props.binding]);
   return (
-    <Form.Group className="mb-3">
+    <Form.Group className={props.noMarginBottom === true ? undefined : "mb-3"}>
       {props.label === undefined ? null : (
         <Form.Label>{props.label}</Form.Label>
       )}

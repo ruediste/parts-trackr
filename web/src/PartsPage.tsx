@@ -1,17 +1,17 @@
 import { useEffect, useState } from "react";
 import { Button, Card, Form, InputGroup, Table } from "react-bootstrap";
+import AsyncSelect from "react-select/async";
 import { toast } from "react-toastify";
 import { EditList } from "./EditList";
 import { EditParameterDefinitions } from "./EditParameterDefinitions";
 import Input, { Select } from "./Input";
+import { Location } from "./Location";
 import Part, { ParameterValuePMod, PartTreeItem, SubTree } from "./Part";
 import { SiPrefixInput } from "./siPrefix";
 import { useBinding } from "./useBinding";
 import { post, RefreshTrigger, req, useRefreshTrigger } from "./useData";
 import WithData from "./WithData";
-import { WithEdit } from "./WithEdit";
-import AsyncSelect from "react-select/async";
-import { Location } from "./Location";
+import { RenderEdit, WithEdit } from "./WithEdit";
 
 interface PartPageCtx {
   add: (parentId: number | undefined, onModified: () => void) => void;
@@ -271,7 +271,154 @@ function EditPart({
               <EditInventoryEntries url={url + "/inventoryEntry"} />
             </Card.Body>
           </Card>
+          <Card>
+            <Card.Body>
+              <Card.Title>Documents</Card.Title>
+              <EditDocuments url={url + "/document"} />
+            </Card.Body>
+          </Card>
         </div>
+      )}
+    />
+  );
+}
+
+interface UploadingFile {
+  name: string;
+  progress: number;
+}
+
+interface PartDocument {
+  id: number;
+  name: string;
+  fileName: string;
+  mimeType: string;
+}
+
+function EditDocuments({ url }: { url: string }) {
+  const [uploadingFiles, setUploadingFiles] = useState<UploadingFile[]>([]);
+  return (
+    <WithData<PartDocument[]>
+      url={url}
+      render={(documents, refresh) => (
+        <>
+          <Form>
+            <Form.Group className="mb-3">
+              <Form.Label>Upload Document</Form.Label>
+              <Form.Control
+                type="file"
+                multiple
+                onChange={(e) => {
+                  const files: FileList | null = (e.target as any).files;
+                  if (files == null) return;
+                  const tmp: UploadingFile[] = [];
+                  for (var i = 0; i < files.length; i++) {
+                    const file = files.item(i);
+                    if (file == null) continue;
+                    const uploadingFile = { name: file.name, progress: 0 };
+                    tmp.push(uploadingFile);
+                    post(url)
+                      .bodyRaw(file)
+                      .query({ name: file.name })
+                      .success((data) => {
+                        toast.success(file.name + " uploaded");
+                        setUploadingFiles((old) =>
+                          old.filter((x) => x !== uploadingFile)
+                        );
+                        refresh();
+                      })
+                      .upload(({ loaded, total }) => {
+                        console.log(loaded, total);
+                        uploadingFile.progress = Math.round(
+                          (100 * loaded) / total
+                        );
+                        setUploadingFiles((old) => [...old]);
+                      });
+                  }
+                  setUploadingFiles((old) => [...old, ...tmp]);
+
+                  // clear the selected files
+                  e.target.value = "";
+                }}
+              />
+            </Form.Group>
+          </Form>
+          <Table bordered hover style={{ height: "1px" /* ignored */ }}>
+            <thead>
+              <tr>
+                <th></th>
+                <th>Name</th>
+                <th>Mime Type</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              {documents.map((doc) => (
+                <RenderEdit<PartDocument>
+                  value={doc}
+                  url={"api/document/" + doc.id}
+                  onSuccess={refresh}
+                  onError={() => {
+                    refresh();
+                    toast("Error updating document");
+                  }}
+                  render={({ bind }) => (
+                    <tr key={doc.id} style={{ height: "100%" }}>
+                      <td style={{ height: "100%", padding: 0 }}>
+                        <a
+                          style={{
+                            display: "flex",
+                            justifyContent: "center",
+                            alignItems: "center",
+                            height: "100%",
+                          }}
+                          href={"/api/document/" + doc.id + "/" + doc.fileName}
+                          target="_blank"
+                        >
+                          <i className="bi bi-download"></i>
+                        </a>
+                      </td>
+                      <td>
+                        <Input noMarginBottom {...bind("name")} />{" "}
+                      </td>
+                      <td>
+                        <Input noMarginBottom {...bind("mimeType")} />{" "}
+                      </td>
+                      <td>
+                        <Button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            req("api/document/" + doc.id)
+                              .method("DELETE")
+                              .success(refresh)
+                              .send();
+                          }}
+                        >
+                          <i className="bi bi-trash"></i>
+                        </Button>
+                      </td>
+                    </tr>
+                  )}
+                />
+              ))}
+            </tbody>
+          </Table>
+          {uploadingFiles.map((file, idx) => (
+            <div key={idx} className="d-flex align-items-center">
+              <span>{file.name}</span>
+              <div className="progress flex-fill">
+                <div
+                  className="progress-bar"
+                  role="progressbar"
+                  style={{ width: file.progress + "%" }}
+                  aria-valuenow={file.progress}
+                  aria-valuemin={0}
+                  aria-valuemax={100}
+                ></div>
+              </div>
+            </div>
+          ))}
+        </>
       )}
     />
   );

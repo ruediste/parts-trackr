@@ -2,6 +2,7 @@ package com.github.ruediste.partstrackr.part;
 
 import static java.util.stream.Collectors.toMap;
 
+import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
@@ -10,6 +11,7 @@ import java.util.List;
 
 import javax.persistence.EntityManager;
 import javax.persistence.PersistenceContext;
+import javax.ws.rs.Consumes;
 import javax.ws.rs.DELETE;
 import javax.ws.rs.GET;
 import javax.ws.rs.POST;
@@ -19,16 +21,16 @@ import javax.ws.rs.Produces;
 import javax.ws.rs.QueryParam;
 import javax.ws.rs.core.MediaType;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
-import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.github.ruediste.partstrackr.Pair;
+import com.github.ruediste.partstrackr.document.Document;
+import com.github.ruediste.partstrackr.document.DocumentService;
 import com.github.ruediste.partstrackr.inventory.InventoryEntry;
-import com.github.ruediste.partstrackr.inventory.LocationParameterValue;
 import com.github.ruediste.partstrackr.location.Location;
-import com.github.ruediste.partstrackr.location.LocationParameterDefinition;
 
 @Component
 @Transactional
@@ -37,6 +39,9 @@ import com.github.ruediste.partstrackr.location.LocationParameterDefinition;
 public class PartRest {
 	@PersistenceContext
 	private EntityManager em;
+
+	@Autowired
+	DocumentService documentService;
 
 	public static class PartTreeItem {
 		public long id;
@@ -407,4 +412,23 @@ public class PartRest {
 		pMod.count = entry.count;
 		return pMod;
 	}
+
+	@POST
+	@Consumes()
+	@Path("{id}/document")
+	public Document addDocument(@PathParam("id") long id, @QueryParam("name") String name, InputStream body) {
+		var part = em.find(Part.class, id);
+		var document = documentService.addDocument(part, name, body);
+		return document;
+	}
+
+	@GET
+	@Consumes()
+	@Path("{id}/document")
+	public List<Document> getDocuments(@PathParam("id") long id) {
+		var part = em.find(Part.class, id);
+		return part.documents.stream()
+				.sorted(Comparator.comparing(x -> x.name, Comparator.nullsLast(Comparator.naturalOrder()))).toList();
+	}
+
 }

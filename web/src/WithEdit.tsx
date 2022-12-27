@@ -8,10 +8,11 @@ export type EditRenderFunction<T> = (args: {
   value: T;
 }) => JSX.Element | null;
 
-function RenderEdit<T>(props: {
+export function RenderEdit<T>(props: {
   url: string;
   value: T;
   onSuccess?: () => void;
+  onError?: (error: any) => void;
   render: EditRenderFunction<T>;
   onPreSave?: (value: T) => void;
 }) {
@@ -24,7 +25,7 @@ function RenderEdit<T>(props: {
           toast.success("Saved");
           if (props.onSuccess !== undefined) props.onSuccess();
         })
-        .error("Error during save")
+        .error(props.onError ?? "Error during save")
         .send();
     },
   });

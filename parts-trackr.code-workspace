@@ -13,6 +13,10 @@
 		"[java]": {
 			"editor.detectIndentation": false,
 			"editor.insertSpaces": false
+		},
+		"editor.codeActionsOnSave": {
+			"source.fixAll": true,
+			"source.organizeImports": true
 		}
 	}
 }
