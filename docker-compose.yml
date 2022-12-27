@@ -1,0 +1,19 @@
+version: "3.1"
+services:
+  db:
+    image: mariadb:10.9
+    restart: always
+    ports:
+      - 3317:3306
+    environment:
+      MARIADB_ROOT_PASSWORD: root
+      MARIADB_DATABASE: parts
+    volumes:
+      - ./data:/var/lib/mysql
+
+  backup:
+    image: periodic-backup
+    build: periodic-backup
+    restart: always
+    volumes:
+      - ~/Dropbox/partsTrackr/:/backup

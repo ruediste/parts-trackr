@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Button, Card, Form, InputGroup, Table } from "react-bootstrap";
 import AsyncSelect from "react-select/async";
 import { toast } from "react-toastify";
@@ -211,10 +211,12 @@ function EditPart({
   close,
   id,
   onModified,
+  refreshDocuments,
 }: {
   close: () => void;
   onModified: () => void;
   id: number;
+  refreshDocuments: RefreshTrigger;
 }) {
   const url = "api/part/" + id;
   return (
@@ -265,7 +267,7 @@ function EditPart({
               />
             </Card.Body>
           </Card>
-          <Card>
+          <Card className="mb-3">
             <Card.Body>
               <Card.Title>Inventory Entries</Card.Title>
               <EditInventoryEntries url={url + "/inventoryEntry"} />
@@ -274,7 +276,10 @@ function EditPart({
           <Card>
             <Card.Body>
               <Card.Title>Documents</Card.Title>
-              <EditDocuments url={url + "/document"} />
+              <EditDocuments
+                url={url + "/document"}
+                refresh={refreshDocuments}
+              />
             </Card.Body>
           </Card>
         </div>
@@ -295,10 +300,17 @@ interface PartDocument {
   mimeType: string;
 }
 
-function EditDocuments({ url }: { url: string }) {
+function EditDocuments({
+  url,
+  refresh,
+}: {
+  url: string;
+  refresh: RefreshTrigger;
+}) {
   const [uploadingFiles, setUploadingFiles] = useState<UploadingFile[]>([]);
   return (
     <WithData<PartDocument[]>
+      refresh={refresh}
       url={url}
       render={(documents, refresh) => (
         <>
@@ -488,13 +500,16 @@ function PartListEntry({
   useEffect(() => {
     if (!part.hasChildren) setExpanded(false);
   }, [part.hasChildren]);
+  const editRefresh = () => {
+    refreshSiblings();
+  };
   return (
     <>
       <tr
         onClick={
           part.hasChildren
             ? () => setExpanded((x) => !x)
-            : () => ctx.edit(part.id, refreshSiblings)
+            : () => ctx.edit(part.id, editRefresh)
         }
       >
         <td style={{ width: 0 }}>
@@ -512,7 +527,7 @@ function PartListEntry({
           <Button
             onClick={(e) => {
               e.stopPropagation();
-              ctx.edit(part.id, refreshSiblings);
+              ctx.edit(part.id, editRefresh);
             }}
           >
             {" "}
@@ -593,16 +608,81 @@ export default function PartsPage() {
     },
   };
 
+  const dragEnterCount = useRef(0);
+  const [dragHovering, setDragHovering] = useState(false);
+  const refreshDocuments = useRefreshTrigger();
+
   return (
     <WithData<SubTree>
       url="api/part/roots"
       render={(rootTree, trigger) => (
         <div
+          className={
+            "partsPage" +
+            (dragHovering && edit !== undefined ? " fileHovering" : "")
+          }
           style={{
             display: "flex",
             columnGap: "10px",
             marginLeft: "4px",
             marginRight: "4px",
+          }}
+          onDrop={(ev) => {
+            ev.preventDefault();
+            setDragHovering(false);
+            dragEnterCount.current = 0;
+
+            if (edit === undefined) return;
+
+            const uploadFile = (file: File) => {
+              const toastId = toast.loading(`uploading ${file.name}`, {
+                progress: 0,
+                hideProgressBar: false,
+              });
+              post("api/part/" + edit.id + "/document")
+                .bodyRaw(file)
+                .query({ name: file.name })
+                .success((data) => {
+                  toast.dismiss(toastId);
+                  toast.success("uploaded " + file.name);
+                  refreshDocuments.trigger();
+                })
+                .upload(({ loaded, total }) => {
+                  toast.update(toastId, {
+                    progress: total == 0 ? 0 : loaded / total,
+                  });
+                });
+            };
+            if (ev.dataTransfer.items) {
+              // Use DataTransferItemList interface to access the file(s)
+              for (let i = 0; i < ev.dataTransfer.items.length; i++) {
+                const item = ev.dataTransfer.items[i];
+                // If dropped items aren't files, reject them
+                if (item.kind === "file") {
+                  const file = item.getAsFile()!;
+                  uploadFile(file);
+                }
+              }
+            } else {
+              // Use DataTransfer interface to access the file(s)
+              for (let i = 0; i < ev.dataTransfer.files.length; i++) {
+                const file = ev.dataTransfer.files[i];
+                uploadFile(file);
+              }
+            }
+          }}
+          onDragEnter={(e) => {
+            if (dragEnterCount.current == 0) setDragHovering(true);
+            dragEnterCount.current++;
+            e.preventDefault();
+          }}
+          onDragLeave={(e) => {
+            dragEnterCount.current--;
+            if (dragEnterCount.current == 0) setDragHovering(false);
+            e.preventDefault();
+          }}
+          onDragOver={(event) => {
+            event.preventDefault();
           }}
         >
           <div style={{ flexGrow: 1 }}>
@@ -624,7 +704,11 @@ export default function PartsPage() {
           </div>
           {edit === undefined ? null : (
             <div style={{ flexGrow: 1 }}>
-              <EditPart {...edit} close={() => setEdit(undefined)} />
+              <EditPart
+                {...edit}
+                close={() => setEdit(undefined)}
+                refreshDocuments={refreshDocuments}
+              />
             </div>
           )}
         </div>

@@ -17,3 +17,12 @@
     margin-left: 4px;
   }
 }
+
+.partsPage {
+  border-width: 2px;
+  border-color: transparent;
+  border-style: solid;
+  &.fileHovering {
+    border-color: blue;
+  }
+}
