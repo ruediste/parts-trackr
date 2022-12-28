@@ -15,6 +15,7 @@ import javax.persistence.FetchType;
 import javax.persistence.GeneratedValue;
 import javax.persistence.GenerationType;
 import javax.persistence.Id;
+import javax.persistence.Lob;
 import javax.persistence.ManyToOne;
 import javax.persistence.OneToMany;
 
@@ -40,16 +41,19 @@ public class Part {
 
 	public String name;
 
-	@OneToMany(mappedBy = PartParameterDefinition_.PART, fetch = FetchType.EAGER)
+	@Lob
+	public String comment;
+
+	@OneToMany(mappedBy = PartParameterDefinition_.PART, fetch = FetchType.LAZY)
 	public Set<PartParameterDefinition> parameterDefinitions = new HashSet<>();
 
-	@OneToMany(mappedBy = PartParameterValue_.PART, fetch = FetchType.EAGER)
+	@OneToMany(mappedBy = PartParameterValue_.PART, fetch = FetchType.LAZY)
 	public Set<PartParameterValue> parameterValues = new HashSet<>();
 
-	@OneToMany(mappedBy = InventoryEntry_.PART, fetch = FetchType.EAGER)
+	@OneToMany(mappedBy = InventoryEntry_.PART, fetch = FetchType.LAZY)
 	public Set<InventoryEntry> inventoryEntries = new HashSet<>();
 
-	@OneToMany(mappedBy = Document_.PART, fetch = FetchType.EAGER)
+	@OneToMany(mappedBy = Document_.PART, fetch = FetchType.LAZY)
 	public Set<Document> documents = new HashSet<>();
 
 	@ManyToOne

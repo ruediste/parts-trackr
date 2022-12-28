@@ -22,7 +22,7 @@ import com.github.ruediste.partstrackr.location.LocationParameterDefinition;
 @Transactional
 @Path("api/inventoryEntry")
 @Produces(MediaType.APPLICATION_JSON)
-public class InventoryItemRest {
+public class InventoryEntryRest {
 	@PersistenceContext
 	private EntityManager em;
 

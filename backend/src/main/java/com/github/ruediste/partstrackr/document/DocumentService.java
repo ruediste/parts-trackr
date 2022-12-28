@@ -7,6 +7,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.stream.Collectors;
 
 import javax.persistence.EntityManager;
 import javax.persistence.PersistenceContext;
@@ -33,6 +34,15 @@ public class DocumentService {
 	}
 
 	public Document addDocument(Part part, String fileName, InputStream body) {
+		// make file name unique for photos
+		if ("photo.jpg".equals(fileName)) {
+			var existingNames = part.documents.stream().map(x -> x.name).collect(Collectors.toSet());
+			int i = 0;
+			while (existingNames.contains(fileName)) {
+				fileName = "photo-" + (i++) + ".jpg";
+			}
+		}
+
 		var doc = new Document();
 		doc.part = part;
 		doc.name = fileName;

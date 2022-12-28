@@ -40,7 +40,12 @@ public class LocationRest {
 		var typedQuery = em.createQuery(q);
 		if (maxCount != null)
 			typedQuery.setMaxResults(maxCount);
-		return typedQuery.getResultList();
+		var result = typedQuery.getResultList();
+		for (Location x : result) {
+			x.inventoryEntries.size();
+			x.parameterDefinitions.size();
+		}
+		return result;
 	}
 
 	@POST
@@ -58,6 +63,8 @@ public class LocationRest {
 	@Path("{id}")
 	public Location get(@PathParam("id") long id) {
 		Location result = em.find(Location.class, id);
+		result.parameterDefinitions.size();
+		result.inventoryEntries.size();
 		return result;
 	}
 

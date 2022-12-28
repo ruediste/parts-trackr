@@ -3,6 +3,7 @@ package com.github.ruediste.partstrackr.inventory;
 import java.util.List;
 
 import javax.persistence.Entity;
+import javax.persistence.FetchType;
 import javax.persistence.GeneratedValue;
 import javax.persistence.GenerationType;
 import javax.persistence.Id;
@@ -24,7 +25,7 @@ public class InventoryEntry {
 	@ManyToOne(optional = true)
 	public Location location;
 
-	@OneToMany(mappedBy = LocationParameterValue_.ENTRY)
+	@OneToMany(mappedBy = LocationParameterValue_.ENTRY, fetch = FetchType.LAZY)
 	public List<LocationParameterValue> parameterValues;
 
 	public int count;

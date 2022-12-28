@@ -8,6 +8,7 @@ import java.util.Collection;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
+import java.util.stream.Collectors;
 
 import javax.persistence.EntityManager;
 import javax.persistence.PersistenceContext;
@@ -30,6 +31,7 @@ import com.github.ruediste.partstrackr.Pair;
 import com.github.ruediste.partstrackr.document.Document;
 import com.github.ruediste.partstrackr.document.DocumentService;
 import com.github.ruediste.partstrackr.inventory.InventoryEntry;
+import com.github.ruediste.partstrackr.inventory.LocationParameterValue;
 import com.github.ruediste.partstrackr.location.Location;
 
 @Component
@@ -48,6 +50,7 @@ public class PartRest {
 		public String name;
 		public boolean hasChildren;
 		public List<String> cells;
+		public int inventorySum;
 	}
 
 	public static class PartTreeColumn {
@@ -118,6 +121,7 @@ public class PartRest {
 		item.id = part.id;
 		item.name = part.name;
 		item.hasChildren = !part.children.isEmpty();
+		item.inventorySum = part.inventoryEntries.stream().collect(Collectors.summingInt(x -> x.count));
 
 		var parameters = part.parameterMap();
 		item.cells = definitions.stream().map(def -> {
@@ -153,10 +157,12 @@ public class PartRest {
 		public Long childNameParameterDefinitionId;
 		public List<PartParameterValuePMod> parameterValues = new ArrayList<>();
 		public boolean nameSetByParameterDefinition;
+		public String comment;
 	}
 
 	public void updatePart(Part part, PartPMod pMod) {
 		part.name = pMod.name;
+		part.comment = pMod.comment;
 
 		if (pMod.parentId == null)
 			part.parent = null;
@@ -326,6 +332,7 @@ public class PartRest {
 		pMod.id = part.id;
 		pMod.parentId = part.parent == null ? null : part.parent.id;
 		pMod.name = part.name;
+		pMod.comment = part.comment;
 
 		if (part.childNameParameterDefinition != null) {
 			pMod.childNameParameterDefinitionId = part.childNameParameterDefinition.id;
@@ -364,10 +371,10 @@ public class PartRest {
 
 	@POST
 	@Path("{id}/inventoryEntry")
-	public InventoryEntryPMod addInventoryEntry(@PathParam("id") long id, InventoryEntryPMod pMod) {
+	public InventoryEntryPMod addInventoryEntry(@PathParam("id") long id) {
 		InventoryEntry entry = new InventoryEntry();
 		entry.part = em.find(Part.class, id);
-		updateEntry(entry, pMod);
+		entry.count = 1;
 		em.persist(entry);
 		em.flush();
 		return toPMod(entry);
@@ -398,7 +405,17 @@ public class PartRest {
 	private void updateEntry(InventoryEntry entry, InventoryEntryPMod pMod) {
 		entry.count = pMod.count;
 		if (pMod.locationId != null) {
+			boolean modified = entry.location == null || entry.location.id != pMod.locationId;
 			entry.location = em.find(Location.class, pMod.locationId);
+			if (modified) {
+				entry.parameterValues.forEach(em::remove);
+				for (var def : entry.location.parameterDefinitions) {
+					var pv = new LocationParameterValue();
+					pv.definition = def;
+					pv.entry = entry;
+					em.persist(pv);
+				}
+			}
 		}
 	}
 

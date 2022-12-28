@@ -4,10 +4,11 @@ import org.glassfish.jersey.server.ResourceConfig;
 import org.springframework.stereotype.Component;
 
 import com.github.ruediste.partstrackr.document.DocumentRest;
-import com.github.ruediste.partstrackr.inventory.InventoryItemRest;
+import com.github.ruediste.partstrackr.inventory.InventoryEntryRest;
 import com.github.ruediste.partstrackr.location.LocationRest;
 import com.github.ruediste.partstrackr.parameter.SiPrefixRest;
 import com.github.ruediste.partstrackr.part.PartRest;
+import com.github.ruediste.partstrackr.photoUpload.PhotoUploadRest;
 
 @Component
 public class JerseyConfig extends ResourceConfig {
@@ -16,8 +17,9 @@ public class JerseyConfig extends ResourceConfig {
 		register(LocationRest.class);
 		register(PartRest.class);
 		register(DocumentRest.class);
+		register(PhotoUploadRest.class);
 		register(SiPrefixRest.class);
-		register(InventoryItemRest.class);
+		register(InventoryEntryRest.class);
 		register(CORSResponseFilter.class);
 	}
 

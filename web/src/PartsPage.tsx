@@ -153,7 +153,13 @@ interface InventoryEntryPMod {
   count: number;
   locationId: number | null;
 }
-export function EditInventoryEntries({ url }: { url: string }) {
+export function EditInventoryEntries({
+  url,
+  onModified,
+}: {
+  url: string;
+  onModified: () => void;
+}) {
   const refresh = useRefreshTrigger();
   return (
     <EditList<InventoryEntryPMod, InventoryEntryPMod>
@@ -163,7 +169,10 @@ export function EditInventoryEntries({ url }: { url: string }) {
       ]}
       url={url}
       createAddValue={() => ({})}
-      onPostSave={() => refresh.trigger()}
+      onPostSave={() => {
+        refresh.trigger();
+        onModified();
+      }}
       renderEdit={({ bind, value }) => {
         const bindLocationId = bind("locationId").binding;
         return (
@@ -232,6 +241,12 @@ function EditPart({
           {value.nameSetByParameterDefinition ? null : (
             <Input label="Name" {...bind("name")} />
           )}
+          <Input
+            label="Comment"
+            type="textarea"
+            rows={3}
+            {...bind("comment")}
+          />
           <Select
             label="Child Name Parameter"
             {...bind("childNameParameterDefinitionId")}
@@ -270,7 +285,10 @@ function EditPart({
           <Card className="mb-3">
             <Card.Body>
               <Card.Title>Inventory Entries</Card.Title>
-              <EditInventoryEntries url={url + "/inventoryEntry"} />
+              <EditInventoryEntries
+                url={url + "/inventoryEntry"}
+                onModified={onModified}
+              />
             </Card.Body>
           </Card>
           <Card>
@@ -375,7 +393,7 @@ function EditDocuments({
                     toast("Error updating document");
                   }}
                   render={({ bind }) => (
-                    <tr key={doc.id} style={{ height: "100%" }}>
+                    <tr style={{ height: "100%" }}>
                       <td style={{ height: "100%", padding: 0 }}>
                         <a
                           style={{
@@ -430,6 +448,28 @@ function EditDocuments({
               </div>
             </div>
           ))}
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "row",
+              gap: "4px",
+              flexWrap: "wrap",
+            }}
+          >
+            {documents
+              .filter((doc) => doc.mimeType === "image/jpeg")
+              .map((doc) => (
+                <div key={doc.id} className="card" style={{ width: "18rem" }}>
+                  <img
+                    className="card-img-top"
+                    src={"/api/document/" + doc.id + "/" + doc.fileName}
+                  />
+                  <div className="card-body">
+                    <p className="card-text">{doc.name}</p>
+                  </div>
+                </div>
+              ))}
+          </div>
         </>
       )}
     />
@@ -454,15 +494,14 @@ function DisplaySubtree({
       {subTree.columns.length === 0 ? null : (
         <thead>
           <tr>
-            <th></th>
-            {/* chevron */}
-            <th></th>
-            {/* name */}
+            <th>{/* chevron */}</th>
+            <th>{/* name */}</th>
+
             {subTree.columns.map((c, idx) => (
               <th key={idx}>{c.label}</th>
             ))}
-            <th></th>
-            {/* actions */}
+            <th>{/* inventory */}</th>
+            <th>{/* actions */}</th>
           </tr>
         </thead>
       )}
@@ -523,7 +562,10 @@ function PartListEntry({
         {part.cells.map((cell, idx) => (
           <td key={idx}>{cell}</td>
         ))}
-        <td style={{ textAlign: "right" }}>
+        <td style={{ textAlign: "right", width: "0px" }}>
+          {part.inventorySum > 0 ? "" + part.inventorySum : null}
+        </td>
+        <td style={{ textAlign: "right", width: "0px", whiteSpace: "nowrap" }}>
           <Button
             onClick={(e) => {
               e.stopPropagation();
@@ -559,7 +601,7 @@ function PartListEntry({
       </tr>
       {!expanded ? null : (
         <tr>
-          <td colSpan={part.cells.length + 3} style={{ borderTopWidth: "1px" }}>
+          <td colSpan={part.cells.length + 4} style={{ borderTopWidth: "1px" }}>
             <WithData<SubTree>
               url={"api/part/" + part.id + "/children"}
               refresh={refreshChildren}
@@ -598,6 +640,10 @@ export default function PartsPage() {
             id: part.id,
             onModified,
           });
+          post("api/photo/currentPart")
+            .query({ part: "" + part.id })
+            .success(() => {})
+            .send();
         })
         .error("Error while adding part")
         .send();
@@ -605,6 +651,10 @@ export default function PartsPage() {
     edit: (id, onModified) => {
       if (edit !== undefined) edit.onModified();
       setEdit({ id, onModified });
+      post("api/photo/currentPart")
+        .query({ part: "" + id })
+        .success(() => {})
+        .send();
     },
   };
 
@@ -648,9 +698,10 @@ export default function PartsPage() {
                   refreshDocuments.trigger();
                 })
                 .upload(({ loaded, total }) => {
-                  toast.update(toastId, {
-                    progress: total == 0 ? 0 : loaded / total,
-                  });
+                  if (loaded < total)
+                    toast.update(toastId, {
+                      progress: total == 0 ? 0 : loaded / total,
+                    });
                 });
             };
             if (ev.dataTransfer.items) {
@@ -685,7 +736,7 @@ export default function PartsPage() {
             event.preventDefault();
           }}
         >
-          <div style={{ flexGrow: 1 }}>
+          <div style={{ flex: "0 0 50%" }}>
             <Button
               onClick={(e) => {
                 e.stopPropagation();
@@ -703,7 +754,7 @@ export default function PartsPage() {
             />
           </div>
           {edit === undefined ? null : (
-            <div style={{ flexGrow: 1 }}>
+            <div style={{ flex: "0 0 50%" }}>
               <EditPart
                 {...edit}
                 close={() => setEdit(undefined)}

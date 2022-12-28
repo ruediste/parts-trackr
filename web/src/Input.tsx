@@ -64,13 +64,20 @@ export interface InputPropsString extends InputPropsBase {
   type?: "text";
   binding: Binding<string>;
 }
+export interface InputPropsTextArea extends InputPropsBase {
+  type: "textarea";
+  binding: Binding<string>;
+  rows?: number;
+}
 
 export interface InputPropsNumber extends InputPropsBase {
   type: "number";
   binding: Binding<number>;
 }
 
-export default function Input(props: InputPropsString | InputPropsNumber) {
+export default function Input(
+  props: InputPropsString | InputPropsNumber | InputPropsTextArea
+) {
   const update = useForceUpdate();
   const [value, setValue] = useState("");
   const bindingValue = props.binding.get();
@@ -96,8 +103,14 @@ export default function Input(props: InputPropsString | InputPropsNumber) {
           placeholder={props.placeholder}
           value={value}
           onChange={(e) => setValue(e.target.value)}
+          as={props.type === "textarea" ? "textarea" : undefined}
+          rows={props.type === "textarea" ? props.rows : undefined}
           onBlur={() => {
-            if (props.type === undefined || props.type === "text")
+            if (
+              props.type === undefined ||
+              props.type === "text" ||
+              props.type === "textarea"
+            )
               return props.binding.set(value).then(update);
             else if (props.type === "number")
               return props.binding.set(parseFloat(value)).then(update);

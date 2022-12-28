@@ -5,6 +5,7 @@ export interface PartTreeItem {
   hasChildren: boolean;
   name: string;
   cells: string[];
+  inventorySum: number;
 }
 
 export interface PartTreeColumn {
@@ -30,6 +31,7 @@ export default interface Part {
   id: number;
   parentId?: number;
   name: string;
+  comment: string;
   parameterDefinitions: PartParameterDefinition[];
   parameterValues: ParameterValuePMod[];
   nameSetByParameterDefinition: boolean;

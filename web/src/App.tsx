@@ -1,4 +1,4 @@
-import React, { useEffect } from "react";
+import React from "react";
 import { Nav, Navbar } from "react-bootstrap";
 import {
   BrowserRouter as Router,
@@ -11,6 +11,7 @@ import { ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import LocationsPage from "./LocationsPage";
 import PartsPage from "./PartsPage";
+import PhotoUpload from "./PhotoUpload";
 
 interface NavEntry {
   title: string;
@@ -21,6 +22,7 @@ interface NavEntry {
 let navEntries: NavEntry[] = [
   { title: "Parts", path: "/parts", component: PartsPage },
   { title: "Locations", path: "/locations", component: LocationsPage },
+  { title: "Photo", path: "/photo", component: PhotoUpload },
 ];
 
 function Navigation() {
