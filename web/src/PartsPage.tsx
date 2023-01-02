@@ -152,6 +152,7 @@ interface InventoryEntryPMod {
   locationName: string;
   count: number;
   locationId: number | null;
+  parameterValuesDescription: string;
 }
 export function EditInventoryEntries({
   url,
@@ -161,11 +162,13 @@ export function EditInventoryEntries({
   onModified: () => void;
 }) {
   const refresh = useRefreshTrigger();
+  const refreshList = useRefreshTrigger();
   return (
     <EditList<InventoryEntryPMod, InventoryEntryPMod>
       columns={[
         { label: "Location", render: (p) => p.locationName },
         { label: "Count", render: (p) => "" + p.count },
+        { label: "Values", render: (p) => p.parameterValuesDescription },
       ]}
       url={url}
       createAddValue={() => ({})}
@@ -173,10 +176,12 @@ export function EditInventoryEntries({
         refresh.trigger();
         onModified();
       }}
+      refresh={refreshList}
       renderEdit={({ bind, value }) => {
         const bindLocationId = bind("locationId").binding;
         return (
           <Form>
+            <Input type="number" label="Count" {...bind("count")} />
             <Form.Label>Location</Form.Label>
             <AsyncSelect<LocationOption>
               defaultOptions
@@ -202,11 +207,10 @@ export function EditInventoryEntries({
               onChange={(option) => bindLocationId.set(option?.value ?? null)}
             />
 
-            <Input type="number" label="Count" {...bind("count")} />
             <Form.Label>Parameter Values</Form.Label>
             <EditParameterValues
               url={"api/inventoryEntry/" + value.id + "/parameterValue"}
-              onModified={() => {}}
+              onModified={() => refreshList.trigger()}
               refresh={refresh}
             />
           </Form>
@@ -624,6 +628,28 @@ function PartListEntry({
   );
 }
 
+function useHandleImagePaste(partId?: number, onSuccess?: () => void) {
+  const handlePasteAnywhere = (ev: any) => {
+    console.log(ev);
+    const event = ev as ClipboardEvent;
+    if (event.clipboardData === null || partId === undefined) return;
+
+    for (let i = 0; i < event.clipboardData?.items.length ?? 0; i++) {
+      const item = event.clipboardData.items[i];
+      if (item.type.startsWith("image")) {
+        const file = item.getAsFile();
+        if (file !== null) uploadFile(partId, file, onSuccess);
+      }
+    }
+  };
+  useEffect(() => {
+    window.addEventListener("paste", handlePasteAnywhere);
+    return () => {
+      window.removeEventListener("paste", handlePasteAnywhere);
+    };
+  }, []);
+}
+
 export default function PartsPage() {
   const [edit, setEdit] = useState<{
     id: number;
@@ -662,6 +688,7 @@ export default function PartsPage() {
   const [dragHovering, setDragHovering] = useState(false);
   const refreshDocuments = useRefreshTrigger();
 
+  useHandleImagePaste(edit?.id, () => refreshDocuments.trigger());
   return (
     <WithData<SubTree>
       url="api/part/roots"
@@ -678,32 +705,13 @@ export default function PartsPage() {
             marginRight: "4px",
           }}
           onDrop={(ev) => {
+            console.log(ev.dataTransfer.items);
             ev.preventDefault();
             setDragHovering(false);
             dragEnterCount.current = 0;
 
             if (edit === undefined) return;
 
-            const uploadFile = (file: File) => {
-              const toastId = toast.loading(`uploading ${file.name}`, {
-                progress: 0,
-                hideProgressBar: false,
-              });
-              post("api/part/" + edit.id + "/document")
-                .bodyRaw(file)
-                .query({ name: file.name })
-                .success((data) => {
-                  toast.dismiss(toastId);
-                  toast.success("uploaded " + file.name);
-                  refreshDocuments.trigger();
-                })
-                .upload(({ loaded, total }) => {
-                  if (loaded < total)
-                    toast.update(toastId, {
-                      progress: total == 0 ? 0 : loaded / total,
-                    });
-                });
-            };
             if (ev.dataTransfer.items) {
               // Use DataTransferItemList interface to access the file(s)
               for (let i = 0; i < ev.dataTransfer.items.length; i++) {
@@ -711,14 +719,14 @@ export default function PartsPage() {
                 // If dropped items aren't files, reject them
                 if (item.kind === "file") {
                   const file = item.getAsFile()!;
-                  uploadFile(file);
+                  uploadFile(edit.id, file, () => refreshDocuments.trigger());
                 }
               }
             } else {
               // Use DataTransfer interface to access the file(s)
               for (let i = 0; i < ev.dataTransfer.files.length; i++) {
                 const file = ev.dataTransfer.files[i];
-                uploadFile(file);
+                uploadFile(edit.id, file, () => refreshDocuments.trigger());
               }
             }
           }}
@@ -766,4 +774,24 @@ export default function PartsPage() {
       )}
     />
   );
+}
+function uploadFile(partId: number, file: File, onSuccess?: () => void) {
+  const toastId = toast.loading(`uploading ${file.name}`, {
+    progress: 0,
+    hideProgressBar: false,
+  });
+  post("api/part/" + partId + "/document")
+    .bodyRaw(file)
+    .query({ name: file.name })
+    .success((data) => {
+      toast.dismiss(toastId);
+      toast.success("uploaded " + file.name);
+      if (onSuccess !== undefined) onSuccess();
+    })
+    .upload(({ loaded, total }) => {
+      if (loaded < total)
+        toast.update(toastId, {
+          progress: total == 0 ? 0 : loaded / total,
+        });
+    });
 }

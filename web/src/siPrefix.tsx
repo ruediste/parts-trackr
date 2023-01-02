@@ -6,6 +6,7 @@ export interface SiPrefix {
   symbol: string;
   character: string;
   multiplier: number;
+  parseOnly: boolean;
 }
 
 let _siPrefixes: SiPrefix[] = [];
@@ -21,6 +22,7 @@ export function siPrefixes(): SiPrefix[] | undefined {
 export function getSiPrefix(value: number) {
   if (value < 1000 && value >= 1) return undefined;
   for (const prefix of _siPrefixes) {
+    if (prefix.parseOnly) continue;
     if (value >= prefix.multiplier) return prefix;
   }
   return undefined;

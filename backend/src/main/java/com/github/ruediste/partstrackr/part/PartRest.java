@@ -358,6 +358,7 @@ public class PartRest {
 		public long id;
 		public int count;
 		public Long locationId;
+		public String parameterValuesDescription;
 	}
 
 	@GET
@@ -427,6 +428,12 @@ public class PartRest {
 			pMod.locationId = entry.location.id;
 		}
 		pMod.count = entry.count;
+
+		if (entry.parameterValues != null)
+			pMod.parameterValuesDescription = entry.parameterValues.stream()
+					.sorted(Comparator.comparing(x -> x.definition.name))
+					.map(x -> x.definition.name + ": " + x.definition.format(x.value))
+					.collect(Collectors.joining((", ")));
 		return pMod;
 	}
 

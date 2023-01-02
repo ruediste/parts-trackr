@@ -22,7 +22,8 @@ export function EditParameterDefinitions<T extends ParameterDefinitionBase>({
       url={url}
       createAddValue={generateAddValue}
       onPreSave={(def) => {
-        if (def.type === "VALUE" && def.unit === undefined) def.unit = "VOLT";
+        if (def.type === "VALUE" && (def.unit as any) === "null")
+          def.unit = "VOLT";
       }}
       renderEdit={({ bind, value }) => {
         const commonInputs = (
@@ -60,6 +61,7 @@ export function EditParameterDefinitions<T extends ParameterDefinitionBase>({
                     { label: "Ohm", value: "OHM" },
                     { label: "Farad", value: "FARAD" },
                     { label: "Henry", value: "HENRY" },
+                    { label: "Herz", value: "HERZ" },
                   ]}
                 />
               </>

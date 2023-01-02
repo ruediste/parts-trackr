@@ -7,6 +7,7 @@ import java.util.stream.Collectors;
 import javax.persistence.EntityManager;
 import javax.persistence.PersistenceContext;
 import javax.transaction.Transactional;
+import javax.ws.rs.DELETE;
 import javax.ws.rs.GET;
 import javax.ws.rs.POST;
 import javax.ws.rs.Path;
@@ -63,6 +64,13 @@ public class InventoryEntryRest {
 		LocationParameterValue value = em.find(LocationParameterValue.class, valueId);
 		value.value = pMod.value;
 		return toPMod(value.definition, value);
+	}
+
+	@DELETE
+	@Path("{id}/parameterValue/{valueId}")
+	public void deleteParameterValue(@PathParam("valueId") long valueId) {
+		LocationParameterValue value = em.find(LocationParameterValue.class, valueId);
+		em.remove(value);
 	}
 
 	private LocationParameterValuePMod toPMod(LocationParameterDefinition definition, LocationParameterValue value) {

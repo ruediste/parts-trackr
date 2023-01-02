@@ -16,6 +16,7 @@ public class SiPrefixRest {
 		public String symbol;
 		public double multiplier;
 		public char character;
+		public boolean parseOnly;
 	}
 
 	@GET
@@ -25,6 +26,7 @@ public class SiPrefixRest {
 			pMod.symbol = x.symbol;
 			pMod.character = x.character;
 			pMod.multiplier = x.multiplier;
+			pMod.parseOnly = x.parseOnly;
 			return pMod;
 		}).toList();
 	}

@@ -8,7 +8,8 @@ export type Unit =
   | "AMPERE_HOURS"
   | "OHM"
   | "FARAD"
-  | "HENRY";
+  | "HENRY"
+  | "HERZ";
 
 export interface ParameterDefinitionBase {
   id: number;
