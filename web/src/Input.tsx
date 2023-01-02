@@ -1,7 +1,7 @@
 import { ReactElement, useEffect, useState } from "react";
 import { Form, InputGroup } from "react-bootstrap";
 import { Binding, useForceUpdate } from "./useBinding";
-import { RefreshTrigger } from "./useData";
+import { Observable } from "./useData";
 
 export function Select<T>({
   updateOnChange = false,
@@ -10,7 +10,7 @@ export function Select<T>({
   label?: string;
   options: { value: T; label: string }[];
   binding: Binding<T>;
-  reloadValue?: RefreshTrigger;
+  reloadValue?: Observable;
   updateOnChange?: boolean;
 }) {
   const [value, setValue] = useState("");
@@ -22,8 +22,8 @@ export function Select<T>({
     if (props.reloadValue !== undefined) {
       const cb = () => setValue(props.binding.get() + "");
       const reloadValue = props.reloadValue;
-      reloadValue.add(cb);
-      return () => reloadValue.remove(cb);
+      reloadValue.subscribe(cb);
+      return () => reloadValue.unsubscribe(cb);
     }
   }, [props.reloadValue, props.binding]);
   return (
@@ -56,7 +56,7 @@ export interface InputPropsBase {
   label?: string;
   placeholder?: string;
   afterElement?: ReactElement;
-  reloadValue?: RefreshTrigger;
+  reloadValue?: Observable;
   noMarginBottom?: boolean;
 }
 
@@ -88,8 +88,8 @@ export default function Input(
     if (props.reloadValue !== undefined) {
       const cb = () => setValue(props.binding.get() + "");
       const reloadValue = props.reloadValue;
-      reloadValue.add(cb);
-      return () => reloadValue.remove(cb);
+      reloadValue.subscribe(cb);
+      return () => reloadValue.unsubscribe(cb);
     }
   }, [props.reloadValue, props.binding]);
   return (

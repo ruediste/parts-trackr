@@ -6,23 +6,28 @@ import {
   Routes,
   useNavigate,
   useParams,
-  useRoutes,
 } from "react-router-dom";
 import { EditParameterDefinitions } from "./EditParameterDefinitions";
 import Input from "./Input";
 import { Location } from "./Location";
-import { RefreshTrigger, req, useRefreshTrigger } from "./useData";
+import { Observable, req, useObservable } from "./useData";
 import WithData from "./WithData";
 import { WithEdit } from "./WithEdit";
 
-function EditLocation({ trigger, id }: { trigger: () => void; id: string }) {
+function EditLocation({
+  onSuccess,
+  id,
+}: {
+  onSuccess: () => void;
+  id: string;
+}) {
   const navigate = useNavigate();
   const url = "api/location/" + id;
   return (
     <WithEdit<Location>
       key={id}
       url={url}
-      onSuccess={trigger}
+      onSuccess={onSuccess}
       render={({ bind }) => (
         <div>
           <Button variant="secondary" onClick={() => navigate("..")}>
@@ -36,7 +41,7 @@ function EditLocation({ trigger, id }: { trigger: () => void; id: string }) {
               <Card.Title>Parameter Definitions</Card.Title>
               <EditParameterDefinitions
                 url={url + "/parameterDefinition"}
-                onModified={trigger}
+                onModified={onSuccess}
                 generateAddValue={() => ({
                   id: 0,
                   name: "",
@@ -57,7 +62,7 @@ function LocationsList({
   navigate,
   id,
 }: {
-  refresh: RefreshTrigger;
+  refresh: Observable;
   navigate: NavigateFunction;
   id?: string;
 }) {
@@ -153,32 +158,42 @@ function LocationsList({
 function SelectedLocation({
   refresh,
   navigate,
+  onChange,
 }: {
-  refresh: RefreshTrigger;
+  refresh: Observable;
   navigate: NavigateFunction;
+  onChange: () => void;
 }) {
   const { id } = useParams();
   return (
     <div style={{ display: "flex", columnGap: "10px" }}>
       <LocationsList refresh={refresh} navigate={navigate} id={id} />
       <div style={{ flexGrow: 1 }}>
-        <EditLocation trigger={refresh.trigger} id={id!} />
+        <EditLocation onSuccess={onChange} id={id!} />
       </div>
     </div>
   );
 }
 export default function LocationsPage() {
   const navigate = useNavigate();
-  const refresh = useRefreshTrigger();
+  const [refreshObservable, refresh] = useObservable();
   return (
     <Routes>
       <Route
         path=""
-        element={<LocationsList refresh={refresh} navigate={navigate} />}
+        element={
+          <LocationsList refresh={refreshObservable} navigate={navigate} />
+        }
       />
       <Route
         path=":id"
-        element={<SelectedLocation refresh={refresh} navigate={navigate} />}
+        element={
+          <SelectedLocation
+            refresh={refreshObservable}
+            navigate={navigate}
+            onChange={refresh}
+          />
+        }
       />
     </Routes>
   );

@@ -1,6 +1,6 @@
-import React, { ReactElement, useEffect, useRef, useState } from "react";
-import useDeepCompareEffect from "use-deep-compare-effect";
+import { ReactElement, useEffect, useRef, useState } from "react";
 import { toast } from "react-toastify";
+import useDeepCompareEffect from "use-deep-compare-effect";
 
 /** convert the object to a query string, prefixed with an ampersand (&) if non-empty */
 const toQueryString = (obj: { [key: string]: string }) => {
@@ -119,27 +119,31 @@ export function post(url: string) {
   return new Request(url).method("POST");
 }
 
-export class RefreshTrigger {
-  private callbacks: Set<() => void> = new Set();
-  add(callback: () => void): void {
-    this.callbacks.add(callback);
-  }
-  remove(callback: () => void): void {
-    this.callbacks.delete(callback);
-  }
-  trigger(): void {
-    this.callbacks.forEach((x) => x());
-  }
+export abstract class Observable {
+  abstract subscribe(callback: () => void): void;
+  abstract unsubscribe(callback: () => void): void;
 }
 
-export function useRefreshTrigger(): RefreshTrigger {
-  return useRef(new RefreshTrigger()).current;
+class ObservalbeImpl implements Observable {
+  private callbacks: Set<() => void> = new Set();
+  subscribe(callback: () => void): void {
+    this.callbacks.add(callback);
+  }
+  unsubscribe(callback: () => void): void {
+    this.callbacks.delete(callback);
+  }
+  trigger = () => this.callbacks.forEach((x) => x());
+}
+
+export function useObservable(): [Observable, () => void] {
+  const observable = useRef(new ObservalbeImpl()).current;
+  return [observable, observable.trigger];
 }
 
 export interface UseDataArgs {
   url: string;
   queryParams?: { [key: string]: string };
-  refresh?: RefreshTrigger;
+  refresh?: Observable;
   refreshMs?: number;
 }
 
@@ -229,8 +233,8 @@ export default function useData<T>(args: UseDataArgs): Data<T> {
     const trigger = args.refresh;
     if (trigger !== undefined) {
       const performLoad = () => dataLoaderRef.current?.performLoad();
-      trigger.add(performLoad);
-      return () => trigger.remove(performLoad);
+      trigger.subscribe(performLoad);
+      return () => trigger.unsubscribe(performLoad);
     }
   }, [args.refresh]);
 

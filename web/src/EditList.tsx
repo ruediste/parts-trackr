@@ -1,6 +1,6 @@
 import { ReactNode, useEffect, useState } from "react";
 import { Button, Table } from "react-bootstrap";
-import { post, RefreshTrigger, req } from "./useData";
+import { Observable, post, req } from "./useData";
 import WithData from "./WithData";
 import { EditRenderFunction, WithEdit } from "./WithEdit";
 
@@ -18,7 +18,7 @@ export function EditList<
   renderEdit: EditRenderFunction<TEdit>;
   onPreSave?: (value: TEdit) => void;
   onPostSave?: () => void;
-  refresh?: RefreshTrigger;
+  refresh?: Observable;
 }) {
   const [selected, setSelected] = useState<number>();
 

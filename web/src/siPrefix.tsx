@@ -1,6 +1,6 @@
 import Input, { InputPropsBase } from "./Input";
 import { Binding } from "./useBinding";
-import { req, useRefreshTrigger } from "./useData";
+import { req, useObservable } from "./useData";
 
 export interface SiPrefix {
   symbol: string;
@@ -36,7 +36,7 @@ export function SiPrefixInput(
   props: InputPropsBase & { binding: Binding<number | undefined | null> }
 ) {
   const { binding: incomingBinding, ...others } = props;
-  const reloadValue = useRefreshTrigger();
+  const [reloadValue, triggerReloadValue] = useObservable();
   const binding: Binding<string> = {
     property: incomingBinding.property,
     get: () => {
@@ -55,7 +55,7 @@ export function SiPrefixInput(
       if (value === "") return incomingBinding.set(undefined);
 
       if (!value.match(/^[+-]?\d*\.?\d*[a-zA-Z]?$/)) {
-        reloadValue.trigger();
+        triggerReloadValue();
         return Promise.resolve();
       }
       const lastChar = value.charAt(value.length - 1);
@@ -63,7 +63,7 @@ export function SiPrefixInput(
         const parsed = parseFloat(value);
         if (!isNaN(parsed)) {
           return incomingBinding.set(parsed);
-        } else reloadValue.trigger();
+        } else triggerReloadValue();
         return Promise.resolve();
       }
 
@@ -73,7 +73,7 @@ export function SiPrefixInput(
         (prefix?.multiplier ?? 1);
       if (!isNaN(parsed)) {
         return incomingBinding.set(parsed);
-      } else reloadValue.trigger();
+      } else triggerReloadValue();
       return Promise.resolve();
     },
   };

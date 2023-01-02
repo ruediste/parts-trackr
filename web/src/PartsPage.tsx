@@ -9,7 +9,7 @@ import { Location } from "./Location";
 import Part, { ParameterValuePMod, PartTreeItem, SubTree } from "./Part";
 import { SiPrefixInput } from "./siPrefix";
 import { useBinding } from "./useBinding";
-import { post, RefreshTrigger, req, useRefreshTrigger } from "./useData";
+import { Observable, post, req, useObservable } from "./useData";
 import WithData from "./WithData";
 import { RenderEdit, WithEdit } from "./WithEdit";
 
@@ -63,7 +63,7 @@ function EditParameterValues({
 }: {
   url: string;
   onModified: () => void;
-  refresh?: RefreshTrigger;
+  refresh?: Observable;
 }) {
   return (
     <WithData<ParameterValuePMod[]>
@@ -161,8 +161,8 @@ export function EditInventoryEntries({
   url: string;
   onModified: () => void;
 }) {
-  const refresh = useRefreshTrigger();
-  const refreshList = useRefreshTrigger();
+  const [refreshObservable, refresh] = useObservable();
+  const [refreshListObservable, refreshList] = useObservable();
   return (
     <EditList<InventoryEntryPMod, InventoryEntryPMod>
       columns={[
@@ -173,10 +173,10 @@ export function EditInventoryEntries({
       url={url}
       createAddValue={() => ({})}
       onPostSave={() => {
-        refresh.trigger();
+        refresh();
         onModified();
       }}
-      refresh={refreshList}
+      refresh={refreshListObservable}
       renderEdit={({ bind, value }) => {
         const bindLocationId = bind("locationId").binding;
         return (
@@ -210,8 +210,8 @@ export function EditInventoryEntries({
             <Form.Label>Parameter Values</Form.Label>
             <EditParameterValues
               url={"api/inventoryEntry/" + value.id + "/parameterValue"}
-              onModified={() => refreshList.trigger()}
-              refresh={refresh}
+              onModified={() => refreshList()}
+              refresh={refreshObservable}
             />
           </Form>
         );
@@ -229,7 +229,7 @@ function EditPart({
   close: () => void;
   onModified: () => void;
   id: number;
-  refreshDocuments: RefreshTrigger;
+  refreshDocuments: Observable;
 }) {
   const url = "api/part/" + id;
   return (
@@ -322,13 +322,7 @@ interface PartDocument {
   mimeType: string;
 }
 
-function EditDocuments({
-  url,
-  refresh,
-}: {
-  url: string;
-  refresh: RefreshTrigger;
-}) {
+function EditDocuments({ url, refresh }: { url: string; refresh: Observable }) {
   const [uploadingFiles, setUploadingFiles] = useState<UploadingFile[]>([]);
   return (
     <WithData<PartDocument[]>
@@ -408,6 +402,7 @@ function EditDocuments({
                           }}
                           href={"/api/document/" + doc.id + "/" + doc.fileName}
                           target="_blank"
+                          rel="noreferrer"
                         >
                           <i className="bi bi-download"></i>
                         </a>
@@ -465,6 +460,7 @@ function EditDocuments({
               .map((doc) => (
                 <div key={doc.id} className="card" style={{ width: "18rem" }}>
                   <img
+                    alt=""
                     className="card-img-top"
                     src={"/api/document/" + doc.id + "/" + doc.fileName}
                   />
@@ -538,7 +534,7 @@ function PartListEntry({
   refreshSiblings: () => void;
   refreshParent: () => void;
 }) {
-  const refreshChildren = useRefreshTrigger();
+  const [refreshChildrenObservable, refreshChildren] = useObservable();
   const [expanded, setExpanded] = useState(false);
   useEffect(() => {
     if (!part.hasChildren) setExpanded(false);
@@ -583,7 +579,7 @@ function PartListEntry({
             onClick={(e) => {
               e.stopPropagation();
               ctx.add(part.id, () => {
-                refreshChildren.trigger();
+                refreshChildren();
                 setExpanded(true);
               });
             }}
@@ -608,7 +604,7 @@ function PartListEntry({
           <td colSpan={part.cells.length + 4} style={{ borderTopWidth: "1px" }}>
             <WithData<SubTree>
               url={"api/part/" + part.id + "/children"}
-              refresh={refreshChildren}
+              refresh={refreshChildrenObservable}
               render={(subTree, refreshSubtree) => (
                 <DisplaySubtree
                   ctx={ctx}
@@ -629,25 +625,25 @@ function PartListEntry({
 }
 
 function useHandleImagePaste(partId?: number, onSuccess?: () => void) {
-  const handlePasteAnywhere = (ev: any) => {
-    console.log(ev);
-    const event = ev as ClipboardEvent;
-    if (event.clipboardData === null || partId === undefined) return;
-
-    for (let i = 0; i < event.clipboardData?.items.length ?? 0; i++) {
-      const item = event.clipboardData.items[i];
-      if (item.type.startsWith("image")) {
-        const file = item.getAsFile();
-        if (file !== null) uploadFile(partId, file, onSuccess);
-      }
-    }
-  };
   useEffect(() => {
+    const handlePasteAnywhere = (ev: any) => {
+      console.log(ev);
+      const event = ev as ClipboardEvent;
+      if (event.clipboardData === null || partId === undefined) return;
+
+      for (let i = 0; i < event.clipboardData?.items.length ?? 0; i++) {
+        const item = event.clipboardData.items[i];
+        if (item.type.startsWith("image")) {
+          const file = item.getAsFile();
+          if (file !== null) uploadFile(partId, file, onSuccess);
+        }
+      }
+    };
     window.addEventListener("paste", handlePasteAnywhere);
     return () => {
       window.removeEventListener("paste", handlePasteAnywhere);
     };
-  }, []);
+  }, [partId, onSuccess]);
 }
 
 export default function PartsPage() {
@@ -686,9 +682,9 @@ export default function PartsPage() {
 
   const dragEnterCount = useRef(0);
   const [dragHovering, setDragHovering] = useState(false);
-  const refreshDocuments = useRefreshTrigger();
+  const [refreshDocumentsObservable, refreshDocuments] = useObservable();
 
-  useHandleImagePaste(edit?.id, () => refreshDocuments.trigger());
+  useHandleImagePaste(edit?.id, refreshDocuments);
   return (
     <WithData<SubTree>
       url="api/part/roots"
@@ -719,25 +715,25 @@ export default function PartsPage() {
                 // If dropped items aren't files, reject them
                 if (item.kind === "file") {
                   const file = item.getAsFile()!;
-                  uploadFile(edit.id, file, () => refreshDocuments.trigger());
+                  uploadFile(edit.id, file, () => refreshDocuments());
                 }
               }
             } else {
               // Use DataTransfer interface to access the file(s)
               for (let i = 0; i < ev.dataTransfer.files.length; i++) {
                 const file = ev.dataTransfer.files[i];
-                uploadFile(edit.id, file, () => refreshDocuments.trigger());
+                uploadFile(edit.id, file, () => refreshDocuments());
               }
             }
           }}
           onDragEnter={(e) => {
-            if (dragEnterCount.current == 0) setDragHovering(true);
+            if (dragEnterCount.current === 0) setDragHovering(true);
             dragEnterCount.current++;
             e.preventDefault();
           }}
           onDragLeave={(e) => {
             dragEnterCount.current--;
-            if (dragEnterCount.current == 0) setDragHovering(false);
+            if (dragEnterCount.current === 0) setDragHovering(false);
             e.preventDefault();
           }}
           onDragOver={(event) => {
@@ -766,7 +762,7 @@ export default function PartsPage() {
               <EditPart
                 {...edit}
                 close={() => setEdit(undefined)}
-                refreshDocuments={refreshDocuments}
+                refreshDocuments={refreshDocumentsObservable}
               />
             </div>
           )}
@@ -791,7 +787,7 @@ function uploadFile(partId: number, file: File, onSuccess?: () => void) {
     .upload(({ loaded, total }) => {
       if (loaded < total)
         toast.update(toastId, {
-          progress: total == 0 ? 0 : loaded / total,
+          progress: total === 0 ? 0 : loaded / total,
         });
     });
 }
