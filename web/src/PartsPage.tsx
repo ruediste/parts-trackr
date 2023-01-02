@@ -18,6 +18,370 @@ interface PartPageCtx {
   edit: (id: number, onModified: () => void) => void;
 }
 
+export default function PartsPage() {
+  const [edit, setEdit] = useState<{
+    id: number;
+    onModified: () => void;
+  }>();
+  const ctx: PartPageCtx = {
+    add: (parentId, onModified) => {
+      post("api/part")
+        .body({ parentId } as Partial<Part>)
+        .success((part: Part) => {
+          toast.success("Saved");
+          if (edit !== undefined) edit.onModified();
+          setEdit({
+            id: part.id,
+            onModified,
+          });
+          post("api/photo/currentPart")
+            .query({ part: "" + part.id })
+            .success(() => {})
+            .send();
+        })
+        .error("Error while adding part")
+        .send();
+    },
+    edit: (id, onModified) => {
+      if (edit !== undefined) edit.onModified();
+      setEdit({ id, onModified });
+      post("api/photo/currentPart")
+        .query({ part: "" + id })
+        .success(() => {})
+        .send();
+    },
+  };
+
+  const dragEnterCount = useRef(0);
+  const [dragHovering, setDragHovering] = useState(false);
+  const [refreshDocumentsObservable, refreshDocuments] = useObservable();
+
+  useHandleImagePaste(edit?.id, refreshDocuments);
+  return (
+    <WithData<SubTree>
+      url="api/part/roots"
+      render={(rootTree, trigger) => (
+        <div
+          className={
+            "partsPage" +
+            (dragHovering && edit !== undefined ? " fileHovering" : "")
+          }
+          style={{
+            display: "flex",
+            columnGap: "10px",
+            marginLeft: "4px",
+            marginRight: "4px",
+          }}
+          onDrop={(ev) => {
+            console.log(ev.dataTransfer.items);
+            ev.preventDefault();
+            setDragHovering(false);
+            dragEnterCount.current = 0;
+
+            if (edit === undefined) return;
+
+            if (ev.dataTransfer.items) {
+              // Use DataTransferItemList interface to access the file(s)
+              for (let i = 0; i < ev.dataTransfer.items.length; i++) {
+                const item = ev.dataTransfer.items[i];
+                // If dropped items aren't files, reject them
+                if (item.kind === "file") {
+                  const file = item.getAsFile()!;
+                  uploadFile(edit.id, file, () => refreshDocuments());
+                }
+              }
+            } else {
+              // Use DataTransfer interface to access the file(s)
+              for (let i = 0; i < ev.dataTransfer.files.length; i++) {
+                const file = ev.dataTransfer.files[i];
+                uploadFile(edit.id, file, () => refreshDocuments());
+              }
+            }
+          }}
+          onDragEnter={(e) => {
+            if (dragEnterCount.current === 0) setDragHovering(true);
+            dragEnterCount.current++;
+            e.preventDefault();
+          }}
+          onDragLeave={(e) => {
+            dragEnterCount.current--;
+            if (dragEnterCount.current === 0) setDragHovering(false);
+            e.preventDefault();
+          }}
+          onDragOver={(event) => {
+            event.preventDefault();
+          }}
+        >
+          <div style={{ flex: "0 0 50%" }}>
+            <Button
+              onClick={(e) => {
+                e.stopPropagation();
+                ctx.add(undefined, () => trigger());
+              }}
+            >
+              <i className="bi bi-plus-circle"></i>
+            </Button>
+            <DisplaySubtree
+              ctx={ctx}
+              refreshSubtree={trigger}
+              refreshParent={trigger}
+              subTree={rootTree}
+              isRoot
+            />
+          </div>
+          {edit === undefined ? null : (
+            <div style={{ flex: "0 0 50%" }}>
+              <EditPart
+                {...edit}
+                close={() => setEdit(undefined)}
+                refreshDocuments={refreshDocumentsObservable}
+              />
+            </div>
+          )}
+        </div>
+      )}
+    />
+  );
+}
+
+function DisplaySubtree({
+  ctx,
+  refreshParent,
+  refreshSubtree,
+  subTree,
+  isRoot = false,
+}: {
+  ctx: PartPageCtx;
+  subTree: SubTree;
+  refreshParent: () => void;
+  refreshSubtree: () => void;
+  isRoot?: boolean;
+}) {
+  return (
+    <table className={"table partTree" + (isRoot ? " root" : "")}>
+      {subTree.columns.length === 0 ? null : (
+        <thead>
+          <tr>
+            <th>{/* chevron */}</th>
+            <th>{/* name */}</th>
+
+            {subTree.columns.map((c, idx) => (
+              <th key={idx}>{c.label}</th>
+            ))}
+            <th>{/* inventory */}</th>
+            <th>{/* actions */}</th>
+          </tr>
+        </thead>
+      )}
+      <tbody>
+        {subTree.items.map((part) => (
+          <PartListEntry
+            key={part.id}
+            part={part}
+            ctx={ctx}
+            refreshSiblings={refreshSubtree}
+            refreshParent={() => {
+              refreshParent();
+              refreshSubtree();
+            }}
+          />
+        ))}
+      </tbody>
+    </table>
+  );
+}
+
+function PartListEntry({
+  part,
+  ctx,
+  refreshSiblings,
+  refreshParent,
+}: {
+  part: PartTreeItem;
+  ctx: PartPageCtx;
+  refreshSiblings: () => void;
+  refreshParent: () => void;
+}) {
+  const [refreshChildrenObservable, refreshChildren] = useObservable();
+  const [expanded, setExpanded] = useState(false);
+  useEffect(() => {
+    if (!part.hasChildren) setExpanded(false);
+  }, [part.hasChildren]);
+  const editRefresh = () => {
+    refreshSiblings();
+  };
+  return (
+    <>
+      <tr
+        onClick={
+          part.hasChildren
+            ? () => setExpanded((x) => !x)
+            : () => ctx.edit(part.id, editRefresh)
+        }
+      >
+        <td style={{ width: 0 }}>
+          {part.hasChildren ? (
+            <i
+              className={"bi bi-chevron-" + (expanded ? "contract" : "expand")}
+            />
+          ) : null}
+        </td>
+        <td style={{ textAlign: "left" }}>{part.name}</td>
+        {part.cells.map((cell, idx) => (
+          <td key={idx}>{cell}</td>
+        ))}
+        <td style={{ textAlign: "right", width: "0px" }}>
+          {part.inventorySum > 0 ? "" + part.inventorySum : null}
+        </td>
+        <td style={{ textAlign: "right", width: "0px", whiteSpace: "nowrap" }}>
+          <Button
+            onClick={(e) => {
+              e.stopPropagation();
+              ctx.edit(part.id, editRefresh);
+            }}
+          >
+            {" "}
+            <i className="bi bi-pencil"></i>
+          </Button>
+          <Button
+            onClick={(e) => {
+              e.stopPropagation();
+              ctx.add(part.id, () => {
+                refreshChildren();
+                setExpanded(true);
+              });
+            }}
+          >
+            <i className="bi bi-plus-circle"></i>
+          </Button>
+          <Button
+            onClick={(e) => {
+              e.stopPropagation();
+              req("api/part/" + part.id)
+                .method("DELETE")
+                .success(refreshParent)
+                .send();
+            }}
+          >
+            <i className="bi bi-trash"></i>
+          </Button>
+        </td>
+      </tr>
+      {!expanded ? null : (
+        <tr>
+          <td colSpan={part.cells.length + 4} style={{ borderTopWidth: "1px" }}>
+            <WithData<SubTree>
+              url={"api/part/" + part.id + "/children"}
+              refresh={refreshChildrenObservable}
+              render={(subTree, refreshSubtree) => (
+                <DisplaySubtree
+                  ctx={ctx}
+                  refreshSubtree={refreshSubtree}
+                  refreshParent={() => {
+                    refreshSiblings();
+                    refreshSubtree();
+                  }}
+                  subTree={subTree}
+                />
+              )}
+            />
+          </td>
+        </tr>
+      )}
+    </>
+  );
+}
+
+function EditPart({
+  close,
+  id,
+  onModified,
+  refreshDocuments,
+}: {
+  close: () => void;
+  onModified: () => void;
+  id: number;
+  refreshDocuments: Observable;
+}) {
+  const url = "api/part/" + id;
+  return (
+    <WithEdit<Part>
+      url={url}
+      onSuccess={onModified}
+      render={({ bind, value }) => (
+        <div>
+          <Button variant="secondary" onClick={() => close()}>
+            Close
+          </Button>
+          <br />
+          {value.nameSetByParameterDefinition ? null : (
+            <Input label="Name" {...bind("name")} />
+          )}
+          <Input
+            label="Comment"
+            type="textarea"
+            rows={3}
+            {...bind("comment")}
+          />
+          <Select
+            label="Child Name Parameter"
+            {...bind("childNameParameterDefinitionId")}
+            options={[
+              { value: null, label: "<none>" },
+              ...value.parameterValues.map((x) => ({
+                value: x.definition.id,
+                label: x.definition.name,
+              })),
+            ]}
+          />
+          <Card className="mb-3">
+            <Card.Body>
+              <Card.Title>Parameter Definitions</Card.Title>
+              <EditParameterDefinitions
+                url={url + "/parameterDefinition"}
+                onModified={onModified}
+                generateAddValue={() => ({
+                  id: 0,
+                  name: "",
+                  type: "TEXT",
+                  values: [],
+                })}
+              />
+            </Card.Body>
+          </Card>
+          <Card className="mb-3">
+            <Card.Body>
+              <Card.Title>Parameter Values</Card.Title>
+              <EditParameterValues
+                url={url + "/parameterValue"}
+                onModified={onModified}
+              />
+            </Card.Body>
+          </Card>
+          <Card className="mb-3">
+            <Card.Body>
+              <Card.Title>Inventory Entries</Card.Title>
+              <EditInventoryEntries
+                url={url + "/inventoryEntry"}
+                onModified={onModified}
+              />
+            </Card.Body>
+          </Card>
+          <Card>
+            <Card.Body>
+              <Card.Title>Documents</Card.Title>
+              <EditDocuments
+                url={url + "/document"}
+                refresh={refreshDocuments}
+              />
+            </Card.Body>
+          </Card>
+        </div>
+      )}
+    />
+  );
+}
+
 function EditParameterValue({
   url,
   value,
@@ -220,96 +584,6 @@ export function EditInventoryEntries({
   );
 }
 
-function EditPart({
-  close,
-  id,
-  onModified,
-  refreshDocuments,
-}: {
-  close: () => void;
-  onModified: () => void;
-  id: number;
-  refreshDocuments: Observable;
-}) {
-  const url = "api/part/" + id;
-  return (
-    <WithEdit<Part>
-      url={url}
-      onSuccess={onModified}
-      render={({ bind, value }) => (
-        <div>
-          <Button variant="secondary" onClick={() => close()}>
-            Close
-          </Button>
-          <br />
-          {value.nameSetByParameterDefinition ? null : (
-            <Input label="Name" {...bind("name")} />
-          )}
-          <Input
-            label="Comment"
-            type="textarea"
-            rows={3}
-            {...bind("comment")}
-          />
-          <Select
-            label="Child Name Parameter"
-            {...bind("childNameParameterDefinitionId")}
-            options={[
-              { value: null, label: "<none>" },
-              ...value.parameterValues.map((x) => ({
-                value: x.definition.id,
-                label: x.definition.name,
-              })),
-            ]}
-          />
-          <Card className="mb-3">
-            <Card.Body>
-              <Card.Title>Parameter Definitions</Card.Title>
-              <EditParameterDefinitions
-                url={url + "/parameterDefinition"}
-                onModified={onModified}
-                generateAddValue={() => ({
-                  id: 0,
-                  name: "",
-                  type: "TEXT",
-                  values: [],
-                })}
-              />
-            </Card.Body>
-          </Card>
-          <Card className="mb-3">
-            <Card.Body>
-              <Card.Title>Parameter Values</Card.Title>
-              <EditParameterValues
-                url={url + "/parameterValue"}
-                onModified={onModified}
-              />
-            </Card.Body>
-          </Card>
-          <Card className="mb-3">
-            <Card.Body>
-              <Card.Title>Inventory Entries</Card.Title>
-              <EditInventoryEntries
-                url={url + "/inventoryEntry"}
-                onModified={onModified}
-              />
-            </Card.Body>
-          </Card>
-          <Card>
-            <Card.Body>
-              <Card.Title>Documents</Card.Title>
-              <EditDocuments
-                url={url + "/document"}
-                refresh={refreshDocuments}
-              />
-            </Card.Body>
-          </Card>
-        </div>
-      )}
-    />
-  );
-}
-
 interface UploadingFile {
   name: string;
   progress: number;
@@ -476,154 +750,6 @@ function EditDocuments({ url, refresh }: { url: string; refresh: Observable }) {
   );
 }
 
-function DisplaySubtree({
-  ctx,
-  refreshParent,
-  refreshSubtree,
-  subTree,
-  isRoot = false,
-}: {
-  ctx: PartPageCtx;
-  subTree: SubTree;
-  refreshParent: () => void;
-  refreshSubtree: () => void;
-  isRoot?: boolean;
-}) {
-  return (
-    <table className={"table partTree" + (isRoot ? " root" : "")}>
-      {subTree.columns.length === 0 ? null : (
-        <thead>
-          <tr>
-            <th>{/* chevron */}</th>
-            <th>{/* name */}</th>
-
-            {subTree.columns.map((c, idx) => (
-              <th key={idx}>{c.label}</th>
-            ))}
-            <th>{/* inventory */}</th>
-            <th>{/* actions */}</th>
-          </tr>
-        </thead>
-      )}
-      <tbody>
-        {subTree.items.map((part) => (
-          <PartListEntry
-            key={part.id}
-            part={part}
-            ctx={ctx}
-            refreshSiblings={refreshSubtree}
-            refreshParent={() => {
-              refreshParent();
-              refreshSubtree();
-            }}
-          />
-        ))}
-      </tbody>
-    </table>
-  );
-}
-
-function PartListEntry({
-  part,
-  ctx,
-  refreshSiblings,
-  refreshParent,
-}: {
-  part: PartTreeItem;
-  ctx: PartPageCtx;
-  refreshSiblings: () => void;
-  refreshParent: () => void;
-}) {
-  const [refreshChildrenObservable, refreshChildren] = useObservable();
-  const [expanded, setExpanded] = useState(false);
-  useEffect(() => {
-    if (!part.hasChildren) setExpanded(false);
-  }, [part.hasChildren]);
-  const editRefresh = () => {
-    refreshSiblings();
-  };
-  return (
-    <>
-      <tr
-        onClick={
-          part.hasChildren
-            ? () => setExpanded((x) => !x)
-            : () => ctx.edit(part.id, editRefresh)
-        }
-      >
-        <td style={{ width: 0 }}>
-          {part.hasChildren ? (
-            <i
-              className={"bi bi-chevron-" + (expanded ? "contract" : "expand")}
-            />
-          ) : null}
-        </td>
-        <td style={{ textAlign: "left" }}>{part.name}</td>
-        {part.cells.map((cell, idx) => (
-          <td key={idx}>{cell}</td>
-        ))}
-        <td style={{ textAlign: "right", width: "0px" }}>
-          {part.inventorySum > 0 ? "" + part.inventorySum : null}
-        </td>
-        <td style={{ textAlign: "right", width: "0px", whiteSpace: "nowrap" }}>
-          <Button
-            onClick={(e) => {
-              e.stopPropagation();
-              ctx.edit(part.id, editRefresh);
-            }}
-          >
-            {" "}
-            <i className="bi bi-pencil"></i>
-          </Button>
-          <Button
-            onClick={(e) => {
-              e.stopPropagation();
-              ctx.add(part.id, () => {
-                refreshChildren();
-                setExpanded(true);
-              });
-            }}
-          >
-            <i className="bi bi-plus-circle"></i>
-          </Button>
-          <Button
-            onClick={(e) => {
-              e.stopPropagation();
-              req("api/part/" + part.id)
-                .method("DELETE")
-                .success(refreshParent)
-                .send();
-            }}
-          >
-            <i className="bi bi-trash"></i>
-          </Button>
-        </td>
-      </tr>
-      {!expanded ? null : (
-        <tr>
-          <td colSpan={part.cells.length + 4} style={{ borderTopWidth: "1px" }}>
-            <WithData<SubTree>
-              url={"api/part/" + part.id + "/children"}
-              refresh={refreshChildrenObservable}
-              render={(subTree, refreshSubtree) => (
-                <DisplaySubtree
-                  ctx={ctx}
-                  refreshSubtree={refreshSubtree}
-                  refreshParent={() => {
-                    refreshSiblings();
-                    refreshSubtree();
-                  }}
-                  subTree={subTree}
-                />
-              )}
-            />
-          </td>
-        </tr>
-      )}
-    </>
-  );
-}
-
 function useHandleImagePaste(partId?: number, onSuccess?: () => void) {
   useEffect(() => {
     const handlePasteAnywhere = (ev: any) => {
@@ -646,131 +772,6 @@ function useHandleImagePaste(partId?: number, onSuccess?: () => void) {
   }, [partId, onSuccess]);
 }
 
-export default function PartsPage() {
-  const [edit, setEdit] = useState<{
-    id: number;
-    onModified: () => void;
-  }>();
-  const ctx: PartPageCtx = {
-    add: (parentId, onModified) => {
-      post("api/part")
-        .body({ parentId } as Partial<Part>)
-        .success((part: Part) => {
-          toast.success("Saved");
-          if (edit !== undefined) edit.onModified();
-          setEdit({
-            id: part.id,
-            onModified,
-          });
-          post("api/photo/currentPart")
-            .query({ part: "" + part.id })
-            .success(() => {})
-            .send();
-        })
-        .error("Error while adding part")
-        .send();
-    },
-    edit: (id, onModified) => {
-      if (edit !== undefined) edit.onModified();
-      setEdit({ id, onModified });
-      post("api/photo/currentPart")
-        .query({ part: "" + id })
-        .success(() => {})
-        .send();
-    },
-  };
-
-  const dragEnterCount = useRef(0);
-  const [dragHovering, setDragHovering] = useState(false);
-  const [refreshDocumentsObservable, refreshDocuments] = useObservable();
-
-  useHandleImagePaste(edit?.id, refreshDocuments);
-  return (
-    <WithData<SubTree>
-      url="api/part/roots"
-      render={(rootTree, trigger) => (
-        <div
-          className={
-            "partsPage" +
-            (dragHovering && edit !== undefined ? " fileHovering" : "")
-          }
-          style={{
-            display: "flex",
-            columnGap: "10px",
-            marginLeft: "4px",
-            marginRight: "4px",
-          }}
-          onDrop={(ev) => {
-            console.log(ev.dataTransfer.items);
-            ev.preventDefault();
-            setDragHovering(false);
-            dragEnterCount.current = 0;
-
-            if (edit === undefined) return;
-
-            if (ev.dataTransfer.items) {
-              // Use DataTransferItemList interface to access the file(s)
-              for (let i = 0; i < ev.dataTransfer.items.length; i++) {
-                const item = ev.dataTransfer.items[i];
-                // If dropped items aren't files, reject them
-                if (item.kind === "file") {
-                  const file = item.getAsFile()!;
-                  uploadFile(edit.id, file, () => refreshDocuments());
-                }
-              }
-            } else {
-              // Use DataTransfer interface to access the file(s)
-              for (let i = 0; i < ev.dataTransfer.files.length; i++) {
-                const file = ev.dataTransfer.files[i];
-                uploadFile(edit.id, file, () => refreshDocuments());
-              }
-            }
-          }}
-          onDragEnter={(e) => {
-            if (dragEnterCount.current === 0) setDragHovering(true);
-            dragEnterCount.current++;
-            e.preventDefault();
-          }}
-          onDragLeave={(e) => {
-            dragEnterCount.current--;
-            if (dragEnterCount.current === 0) setDragHovering(false);
-            e.preventDefault();
-          }}
-          onDragOver={(event) => {
-            event.preventDefault();
-          }}
-        >
-          <div style={{ flex: "0 0 50%" }}>
-            <Button
-              onClick={(e) => {
-                e.stopPropagation();
-                ctx.add(undefined, () => trigger());
-              }}
-            >
-              <i className="bi bi-plus-circle"></i>
-            </Button>
-            <DisplaySubtree
-              ctx={ctx}
-              refreshSubtree={trigger}
-              refreshParent={trigger}
-              subTree={rootTree}
-              isRoot
-            />
-          </div>
-          {edit === undefined ? null : (
-            <div style={{ flex: "0 0 50%" }}>
-              <EditPart
-                {...edit}
-                close={() => setEdit(undefined)}
-                refreshDocuments={refreshDocumentsObservable}
-              />
-            </div>
-          )}
-        </div>
-      )}
-    />
-  );
-}
 function uploadFile(partId: number, file: File, onSuccess?: () => void) {
   const toastId = toast.loading(`uploading ${file.name}`, {
     progress: 0,
