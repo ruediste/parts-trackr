@@ -31,6 +31,8 @@ import com.github.ruediste.partstrackr.Pair;
 import com.github.ruediste.partstrackr.document.Document;
 import com.github.ruediste.partstrackr.document.DocumentService;
 import com.github.ruediste.partstrackr.inventory.InventoryEntry;
+import com.github.ruediste.partstrackr.inventory.InventoryEntryRest;
+import com.github.ruediste.partstrackr.inventory.InventoryEntryRest.InventoryEntryPMod;
 import com.github.ruediste.partstrackr.inventory.LocationParameterValue;
 import com.github.ruediste.partstrackr.location.Location;
 
@@ -45,22 +47,33 @@ public class PartRest {
 	@Autowired
 	DocumentService documentService;
 
-	public static class PartTreeItem {
+	@Autowired
+	PartService service;
+
+	@Autowired
+	InventoryEntryRest inventoryEntryRest;
+
+	public static class PartListItem {
 		public long id;
 		public String name;
 		public boolean hasChildren;
 		public List<String> cells;
 		public int inventorySum;
+
+		/**
+		 * Optional, when a whole tree is loaded
+		 */
+		public PartList children;
 	}
 
-	public static class PartTreeColumn {
+	public static class PartListColumn {
 		public String label;
 		public String unit;
 	}
 
-	public static class SubTree {
-		public List<PartTreeItem> items;
-		public List<PartTreeColumn> columns;
+	public static class PartList {
+		public List<PartListItem> items;
+		public List<PartListColumn> columns;
 	}
 
 	@GET
@@ -76,50 +89,53 @@ public class PartRest {
 
 	@GET
 	@Path("roots")
-	public SubTree rootParts() {
-		var cb = em.getCriteriaBuilder();
-		var q = cb.createQuery(Part.class);
-		var part = q.from(Part.class);
-		q.select(part);
-		q.where(cb.isNull(part.get(Part_.parent)));
-		return toSubTree(null, em.createQuery(q).getResultList());
+	public PartList rootParts() {
+
+		return toPartList(null, service.getRootParts());
 	}
 
 	@GET
 	@Path("{id}/children")
-	public SubTree children(@PathParam("id") long id) {
+	public PartList children(@PathParam("id") long id) {
 		Part parent = em.find(Part.class, id);
-		return toSubTree(parent, parent.children);
+		return toPartList(parent, parent.children);
 	}
 
-	private SubTree toSubTree(Part parent, Collection<Part> parts) {
-		SubTree result = new SubTree();
+	@GET
+	@Path("{id}/treeFromRoot")
+	public PartList treeFromRoot(@PathParam("id") long id) {
+		Part part = em.find(Part.class, id);
+		PartList result = toPartList(null, service.getRootParts());
+		PartList currentList = result;
+		for (var ancestor : part.path()) {
+			var item = currentList.items.stream().filter(x -> x.id == ancestor.id).findFirst().get();
+			item.children = toPartList(ancestor, ancestor.children);
+			currentList = item.children;
+		}
+		return result;
+	}
+
+	private PartList toPartList(Part parent, Collection<Part> parts) {
+		PartList result = new PartList();
 		List<PartParameterDefinition> definitions = parts.stream().flatMap(x -> x.parameterValues.stream())
 				.map(x -> x.definition).distinct().sorted(Comparator.comparing(x -> x.name)).toList();
 
 		result.columns = definitions.stream().map(x -> {
-			PartTreeColumn column = new PartTreeColumn();
+			PartListColumn column = new PartListColumn();
 			column.label = x.name;
 			column.unit = x.unit == null ? null : x.unit.symbol;
 			return column;
 		}).toList();
 
-		Comparator<Part> comparator;
-		if (parent != null && parent.childNameParameterDefinition != null) {
-			comparator = Comparator.comparing(child -> child.nameParameterValue(),
-					parent.childNameParameterDefinition.comparator());
-		} else {
-			comparator = Comparator.comparing(x -> x.name, Comparator.nullsLast(Comparator.naturalOrder()));
-		}
-
-		result.items = parts.stream().sorted(comparator).map(t -> toTreeItem(t, definitions)).toList();
+		result.items = parts.stream().sorted(Part.childrenComparator(parent)).map(t -> toTreeItem(t, definitions))
+				.toList();
 		return result;
 	}
 
-	private PartTreeItem toTreeItem(Part part, List<PartParameterDefinition> definitions) {
-		var item = new PartTreeItem();
+	private PartListItem toTreeItem(Part part, List<PartParameterDefinition> definitions) {
+		var item = new PartListItem();
 		item.id = part.id;
-		item.name = part.name;
+		item.name = part.calculateName();
 		item.hasChildren = !part.children.isEmpty();
 		item.inventorySum = part.inventoryEntries.stream().collect(Collectors.summingInt(x -> x.count));
 
@@ -130,15 +146,6 @@ public class PartRest {
 				return null;
 			return def.format(value.value);
 		}).toList();
-
-		var nameParameterDefinition = part.nameParameterDefinition();
-		if (nameParameterDefinition != null) {
-			var value = part.nameParameterValue();
-			if (value == null)
-				item.name = "";
-			else
-				item.name = nameParameterDefinition.format(value);
-		}
 
 		return item;
 	}
@@ -353,21 +360,13 @@ public class PartRest {
 		return pMod;
 	}
 
-	public static class InventoryEntryPMod {
-		public String locationName;
-		public long id;
-		public int count;
-		public Long locationId;
-		public String parameterValuesDescription;
-	}
-
 	@GET
 	@Path("{id}/inventoryEntry")
 	public List<InventoryEntryPMod> getInventoryEntries(@PathParam("id") long id) {
 		return em.find(Part.class, id).inventoryEntries.stream()
 				.sorted(Comparator.comparing(x -> x.location,
 						Comparator.nullsLast(Comparator.comparing(location -> location.name))))
-				.map(this::toPMod).toList();
+				.map(inventoryEntryRest::toPMod).toList();
 	}
 
 	@POST
@@ -378,13 +377,13 @@ public class PartRest {
 		entry.count = 1;
 		em.persist(entry);
 		em.flush();
-		return toPMod(entry);
+		return inventoryEntryRest.toPMod(entry);
 	}
 
 	@GET
 	@Path("{id}/inventoryEntry/{entryId}")
 	public InventoryEntryPMod getInventoryEntry(@PathParam("id") long id, @PathParam("entryId") long entryId) {
-		return toPMod(em.find(InventoryEntry.class, entryId));
+		return inventoryEntryRest.toPMod(em.find(InventoryEntry.class, entryId));
 	}
 
 	@POST
@@ -393,7 +392,7 @@ public class PartRest {
 			InventoryEntryPMod pMod) {
 		var entry = em.find(InventoryEntry.class, entryId);
 		updateEntry(entry, pMod);
-		return toPMod(entry);
+		return inventoryEntryRest.toPMod(entry);
 	}
 
 	@DELETE
@@ -418,23 +417,6 @@ public class PartRest {
 				}
 			}
 		}
-	}
-
-	private InventoryEntryPMod toPMod(InventoryEntry entry) {
-		var pMod = new InventoryEntryPMod();
-		pMod.id = entry.id;
-		if (entry.location != null) {
-			pMod.locationName = entry.location.name;
-			pMod.locationId = entry.location.id;
-		}
-		pMod.count = entry.count;
-
-		if (entry.parameterValues != null)
-			pMod.parameterValuesDescription = entry.parameterValues.stream()
-					.sorted(Comparator.comparing(x -> x.definition.name))
-					.map(x -> x.definition.name + ": " + x.definition.format(x.value))
-					.collect(Collectors.joining((", ")));
-		return pMod;
 	}
 
 	@POST

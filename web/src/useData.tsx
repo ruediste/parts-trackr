@@ -2,14 +2,20 @@ import { ReactElement, useEffect, useRef, useState } from "react";
 import { toast } from "react-toastify";
 import useDeepCompareEffect from "use-deep-compare-effect";
 
+export type QueryStringObj = {
+  [key: string]: string | null | undefined | number;
+};
+
 /** convert the object to a query string, prefixed with an ampersand (&) if non-empty */
-const toQueryString = (obj: { [key: string]: string }) => {
+const toQueryString = (obj: QueryStringObj) => {
   let entries = Object.entries(obj);
   if (entries.length === 0) return "";
 
   let params = new URLSearchParams();
   for (const [key, value] of entries) {
-    params.append(key, value);
+    if (value == null) continue;
+    if (typeof value === "number") params.append(key, "" + value);
+    else params.append(key, value);
   }
   return "?" + params.toString();
 };
@@ -140,11 +146,12 @@ export function useObservable(): [Observable, () => void] {
   return [observable, observable.trigger];
 }
 
-export interface UseDataArgs {
+export interface UseDataArgs<T> {
   url: string;
-  queryParams?: { [key: string]: string };
+  queryParams?: QueryStringObj;
   refresh?: Observable;
   refreshMs?: number;
+  initialData?: T;
 }
 
 export type Data<T> = { trigger: () => void; placeholder?: ReactElement } & (
@@ -159,9 +166,19 @@ class DataLoader<T> {
   timeout?: NodeJS.Timeout;
 
   constructor(
-    public args: UseDataArgs,
+    public args: Omit<UseDataArgs<T>, "refresh">,
     public setData: (data: Data<T>) => void
   ) {}
+
+  public setLoadedData(data: T) {
+    this.setData({
+      state: "success",
+      value: data,
+      trigger: this.performLoad,
+    });
+    if (this.args.refreshMs !== undefined)
+      this.timeout = setTimeout(this.performLoad, this.args.refreshMs);
+  }
 
   performLoad = () => {
     if (this.closed) return;
@@ -182,13 +199,7 @@ class DataLoader<T> {
       })
       .then((d) => {
         if (this.closed) return;
-        this.setData({
-          state: "success",
-          value: d as T,
-          trigger: this.performLoad,
-        });
-        if (this.args.refreshMs !== undefined)
-          this.timeout = setTimeout(this.performLoad, this.args.refreshMs);
+        this.setLoadedData(d as T);
       })
       .catch((error) => {
         console.log("catch", error);
@@ -217,7 +228,7 @@ class DataLoader<T> {
   }
 }
 
-export default function useData<T>(args: UseDataArgs): Data<T> {
+export default function useData<T>(args: UseDataArgs<T>): Data<T> {
   let dataLoaderRef = useRef<DataLoader<T>>();
   const [data, setData] = useState<Data<T>>({
     state: "loading",
@@ -229,22 +240,25 @@ export default function useData<T>(args: UseDataArgs): Data<T> {
     ),
   });
 
-  useEffect(() => {
-    const trigger = args.refresh;
-    if (trigger !== undefined) {
-      const performLoad = () => dataLoaderRef.current?.performLoad();
-      trigger.subscribe(performLoad);
-      return () => trigger.unsubscribe(performLoad);
-    }
-  }, [args.refresh]);
+  const { refresh, ...others } = args;
 
+  useEffect(() => {
+    if (refresh !== undefined) {
+      const performLoad = () => dataLoaderRef.current?.performLoad();
+      refresh.subscribe(performLoad);
+      return () => refresh.unsubscribe(performLoad);
+    }
+  }, [refresh]);
+
+  const isInitial = useRef(true);
   useDeepCompareEffect(() => {
-    const dataLoader = new DataLoader<T>(args, null as any);
-    dataLoader.setData = setData;
-    dataLoader.args = args;
-    dataLoader.performLoad();
+    const dataLoader = new DataLoader<T>(others, setData);
+    if (isInitial.current && others.initialData !== undefined)
+      dataLoader.setLoadedData(others.initialData);
+    else dataLoader.performLoad();
     dataLoaderRef.current = dataLoader;
+    isInitial.current = false;
     return () => dataLoader.close();
-  }, [args]);
+  }, [others]);
   return data;
 }

@@ -1,6 +1,6 @@
 import { ReactNode, useEffect, useState } from "react";
 import { Button, Table } from "react-bootstrap";
-import { Observable, post, req } from "./useData";
+import { Observable, post, QueryStringObj, req } from "./useData";
 import WithData from "./WithData";
 import { EditRenderFunction, WithEdit } from "./WithEdit";
 
@@ -19,6 +19,8 @@ export function EditList<
   onPreSave?: (value: TEdit) => void;
   onPostSave?: () => void;
   refresh?: Observable;
+  queryParams?: QueryStringObj;
+  horizontal?: boolean;
 }) {
   const [selected, setSelected] = useState<number>();
 
@@ -26,14 +28,29 @@ export function EditList<
     setSelected(undefined);
   }, [props.url]);
 
+  const horizontal = props.horizontal === true;
+
   return (
     <WithData<TListItem[]>
       url={props.url}
+      queryParams={props.queryParams}
       refresh={props.refresh}
       render={(listItems, refresh) => {
         return (
-          <>
-            <Table bordered hover>
+          <div
+            style={{
+              display: "flex",
+              flexDirection: horizontal ? "row" : "column",
+              columnGap: horizontal ? "10px" : undefined,
+            }}
+          >
+            <Table
+              bordered
+              hover
+              style={{
+                flex: horizontal ? "0 0 50%" : undefined,
+              }}
+            >
               <thead>
                 <tr>
                   {props.columns.map((c, idx) => (
@@ -88,24 +105,30 @@ export function EditList<
               </tbody>
             </Table>
             {selected === undefined ? null : (
-              <WithEdit<TEdit>
-                url={props.url + "/" + selected}
-                onSuccess={() => {
-                  refresh();
-                  props.onPostSave?.call(null);
+              <div
+                style={{
+                  flex: horizontal ? "0 0 50%" : undefined,
                 }}
-                onPreSave={props.onPreSave}
-                render={(args) => (
-                  <>
-                    <Button onClick={() => setSelected(undefined)}>
-                      Close
-                    </Button>
-                    {props.renderEdit(args)}
-                  </>
-                )}
-              />
+              >
+                <WithEdit<TEdit>
+                  url={props.url + "/" + selected}
+                  onSuccess={() => {
+                    refresh();
+                    props.onPostSave?.call(null);
+                  }}
+                  onPreSave={props.onPreSave}
+                  render={(args) => (
+                    <>
+                      <Button onClick={() => setSelected(undefined)}>
+                        Close
+                      </Button>
+                      {props.renderEdit(args)}
+                    </>
+                  )}
+                />
+              </div>
             )}
-          </>
+          </div>
         );
       }}
     />

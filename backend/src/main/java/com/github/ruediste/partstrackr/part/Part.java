@@ -110,11 +110,36 @@ public class Part {
 		if (definition == null)
 			return null;
 
+		return parameterValue(definition);
+	}
+
+	public String parameterValue(PartParameterDefinition definition) {
 		var value = getAllParameterMap().get(definition);
 
 		if (value == null)
 			return null;
 		else
 			return value.value;
+	}
+
+	public String calculateName() {
+		var nameParameterDefinition = nameParameterDefinition();
+		if (nameParameterDefinition != null) {
+			var value = parameterValue(nameParameterDefinition);
+			if (value == null)
+				return "";
+			else
+				return nameParameterDefinition.format(value);
+		}
+		return name;
+	}
+
+	public static Comparator<Part> childrenComparator(Part parent) {
+		if (parent != null && parent.childNameParameterDefinition != null) {
+			return Comparator.comparing(child -> child.nameParameterValue(),
+					parent.childNameParameterDefinition.comparator());
+		} else {
+			return Comparator.comparing(x -> x.name, Comparator.nullsLast(Comparator.naturalOrder()));
+		}
 	}
 }

@@ -1,8 +1,8 @@
 import useData, { UseDataArgs } from "./useData";
 
 export default function WithData<T>(
-  props: UseDataArgs & {
-    render: (value: T, trigger: () => void) => JSX.Element | null;
+  props: UseDataArgs<T> & {
+    render: (value: T, refresh: () => void) => JSX.Element | null;
   }
 ) {
   const { render, ...otherProps } = props;

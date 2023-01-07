@@ -1,14 +1,14 @@
 import { useEffect, useRef, useState } from "react";
-import { Button, Card, Form, InputGroup, Table } from "react-bootstrap";
-import AsyncSelect from "react-select/async";
+import { Button, Card, Form, Table } from "react-bootstrap";
+import { useNavigate, useParams, useRoutes } from "react-router-dom";
 import { toast } from "react-toastify";
 import { EditList } from "./EditList";
 import { EditParameterDefinitions } from "./EditParameterDefinitions";
+import EditParameterValues from "./EditParameterValues";
 import Input, { Select } from "./Input";
-import { Location } from "./Location";
-import Part, { ParameterValuePMod, PartTreeItem, SubTree } from "./Part";
-import { SiPrefixInput } from "./siPrefix";
-import { useBinding } from "./useBinding";
+import { InventoryEntryPMod } from "./InventoryEntry";
+import { SelectLocation } from "./Location";
+import Part, { PartList, PartListItem } from "./Part";
 import { Observable, post, req, useObservable } from "./useData";
 import WithData from "./WithData";
 import { RenderEdit, WithEdit } from "./WithEdit";
@@ -16,13 +16,61 @@ import { RenderEdit, WithEdit } from "./WithEdit";
 interface PartPageCtx {
   add: (parentId: number | undefined, onModified: () => void) => void;
   edit: (id: number, onModified: () => void) => void;
+  editId?: number;
+  initialEditId?: number;
 }
 
 export default function PartsPage() {
+  const navigate = useNavigate();
+  const navigateToPart = (id?: number) => navigate("" + (id ?? ""));
+  return useRoutes([
+    {
+      path: ":id/*",
+      element: <PartsPageWithId navigateToPart={navigateToPart} />,
+    },
+    {
+      path: "*",
+      element: <PartsPageInner navigateToPart={navigateToPart} />,
+    },
+  ]);
+}
+
+function PartsPageWithId({
+  navigateToPart,
+}: {
+  navigateToPart: (id?: number) => void;
+}) {
+  const { id } = useParams();
+
+  return (
+    <WithData<PartList>
+      url={"api/part/" + id + "/treeFromRoot"}
+      render={(parts) => (
+        <PartsPageInner
+          treeFromRoot={parts}
+          navigateToPart={navigateToPart}
+          initialEditId={parseInt(id!)}
+        />
+      )}
+    />
+  );
+}
+function PartsPageInner({
+  treeFromRoot,
+  navigateToPart,
+  initialEditId,
+}: {
+  treeFromRoot?: PartList;
+  navigateToPart: (id?: number) => void;
+  initialEditId?: number;
+}) {
   const [edit, setEdit] = useState<{
     id: number;
     onModified: () => void;
   }>();
+
+  const [initialEditIdState, setInitialEditIdState] = useState(initialEditId);
+
   const ctx: PartPageCtx = {
     add: (parentId, onModified) => {
       post("api/part")
@@ -34,6 +82,7 @@ export default function PartsPage() {
             id: part.id,
             onModified,
           });
+          navigateToPart(part.id);
           post("api/photo/currentPart")
             .query({ part: "" + part.id })
             .success(() => {})
@@ -45,11 +94,15 @@ export default function PartsPage() {
     edit: (id, onModified) => {
       if (edit !== undefined) edit.onModified();
       setEdit({ id, onModified });
+      setInitialEditIdState(undefined);
+      navigateToPart(id);
       post("api/photo/currentPart")
         .query({ part: "" + id })
         .success(() => {})
         .send();
     },
+    editId: edit?.id,
+    initialEditId: initialEditIdState,
   };
 
   const dragEnterCount = useRef(0);
@@ -58,9 +111,10 @@ export default function PartsPage() {
 
   useHandleImagePaste(edit?.id, refreshDocuments);
   return (
-    <WithData<SubTree>
+    <WithData<PartList>
       url="api/part/roots"
-      render={(rootTree, trigger) => (
+      initialData={treeFromRoot}
+      render={(rootPartList, trigger) => (
         <div
           className={
             "partsPage" +
@@ -121,11 +175,11 @@ export default function PartsPage() {
             >
               <i className="bi bi-plus-circle"></i>
             </Button>
-            <DisplaySubtree
+            <DisplayPartList
               ctx={ctx}
               refreshSubtree={trigger}
               refreshParent={trigger}
-              subTree={rootTree}
+              partList={rootPartList}
               isRoot
             />
           </div>
@@ -133,7 +187,10 @@ export default function PartsPage() {
             <div style={{ flex: "0 0 50%" }}>
               <EditPart
                 {...edit}
-                close={() => setEdit(undefined)}
+                close={() => {
+                  navigateToPart();
+                  return setEdit(undefined);
+                }}
                 refreshDocuments={refreshDocumentsObservable}
               />
             </div>
@@ -144,28 +201,28 @@ export default function PartsPage() {
   );
 }
 
-function DisplaySubtree({
+function DisplayPartList({
   ctx,
   refreshParent,
   refreshSubtree,
-  subTree,
   isRoot = false,
+  partList,
 }: {
   ctx: PartPageCtx;
-  subTree: SubTree;
+  partList: PartList;
   refreshParent: () => void;
   refreshSubtree: () => void;
   isRoot?: boolean;
 }) {
   return (
     <table className={"table partTree" + (isRoot ? " root" : "")}>
-      {subTree.columns.length === 0 ? null : (
+      {partList.columns.length === 0 ? null : (
         <thead>
           <tr>
             <th>{/* chevron */}</th>
             <th>{/* name */}</th>
 
-            {subTree.columns.map((c, idx) => (
+            {partList.columns.map((c, idx) => (
               <th key={idx}>{c.label}</th>
             ))}
             <th>{/* inventory */}</th>
@@ -174,8 +231,8 @@ function DisplaySubtree({
         </thead>
       )}
       <tbody>
-        {subTree.items.map((part) => (
-          <PartListEntry
+        {partList.items.map((part) => (
+          <DisplayPartListItem
             key={part.id}
             part={part}
             ctx={ctx}
@@ -191,28 +248,34 @@ function DisplaySubtree({
   );
 }
 
-function PartListEntry({
+function DisplayPartListItem({
   part,
   ctx,
   refreshSiblings,
   refreshParent,
 }: {
-  part: PartTreeItem;
+  part: PartListItem;
   ctx: PartPageCtx;
   refreshSiblings: () => void;
   refreshParent: () => void;
 }) {
   const [refreshChildrenObservable, refreshChildren] = useObservable();
-  const [expanded, setExpanded] = useState(false);
+  const [expanded, setExpanded] = useState(part.children !== null);
   useEffect(() => {
     if (!part.hasChildren) setExpanded(false);
   }, [part.hasChildren]);
   const editRefresh = () => {
     refreshSiblings();
   };
+  useEffect(() => {
+    if (ctx.initialEditId !== undefined) {
+      ctx.edit(ctx.initialEditId, editRefresh);
+    }
+  });
   return (
     <>
       <tr
+        className={ctx.editId === part.id ? "table-active" : undefined}
         onClick={
           part.hasChildren
             ? () => setExpanded((x) => !x)
@@ -270,18 +333,19 @@ function PartListEntry({
       {!expanded ? null : (
         <tr>
           <td colSpan={part.cells.length + 4} style={{ borderTopWidth: "1px" }}>
-            <WithData<SubTree>
+            <WithData<PartList>
+              initialData={part.children == null ? undefined : part.children}
               url={"api/part/" + part.id + "/children"}
               refresh={refreshChildrenObservable}
               render={(subTree, refreshSubtree) => (
-                <DisplaySubtree
+                <DisplayPartList
                   ctx={ctx}
                   refreshSubtree={refreshSubtree}
                   refreshParent={() => {
                     refreshSiblings();
                     refreshSubtree();
                   }}
-                  subTree={subTree}
+                  partList={subTree}
                 />
               )}
             />
@@ -382,142 +446,6 @@ function EditPart({
   );
 }
 
-function EditParameterValue({
-  url,
-  value,
-  update,
-}: {
-  url: string;
-  value: ParameterValuePMod;
-  update: () => void;
-}) {
-  const bind = useBinding(value, {
-    update: () =>
-      post(url)
-        .body(value)
-        .success(() => {
-          toast.success(value.definition.name + " updated");
-          update();
-        })
-        .send(),
-  });
-  switch (value.definition.type) {
-    case "TEXT":
-      return <Input {...(bind("value") as any)} />;
-    case "NUMBER":
-      return <Input type="number" {...(bind("value") as any)} />;
-    case "VALUE":
-      return (
-        <SiPrefixInput
-          {...(bind("value") as any)}
-          afterElement={
-            <InputGroup.Text>{value.definition.unit}</InputGroup.Text>
-          }
-        />
-      );
-    case "CHOICE":
-      return <span>TODO</span>;
-  }
-}
-
-function EditParameterValues({
-  url,
-  onModified,
-  refresh,
-}: {
-  url: string;
-  onModified: () => void;
-  refresh?: Observable;
-}) {
-  return (
-    <WithData<ParameterValuePMod[]>
-      url={url}
-      refresh={refresh}
-      render={(pMods, refresh) => (
-        <Table bordered hover>
-          <thead>
-            <tr>
-              <th>Name</th>
-              <th>Value</th>
-            </tr>
-          </thead>
-          <tbody>
-            {pMods.map((p, idx) => {
-              return (
-                <tr key={idx}>
-                  <td>{p.definition.name}</td>
-                  <td>
-                    {p.id !== null ? (
-                      p.inherited ? (
-                        <>{p.value}</>
-                      ) : (
-                        <EditParameterValue
-                          value={p}
-                          update={() => {
-                            refresh();
-                            onModified();
-                          }}
-                          url={url + "/" + p.id}
-                        />
-                      )
-                    ) : null}
-                  </td>
-                  <td>
-                    {p.id === null || p.inherited ? (
-                      <Button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          post(url)
-                            .body({
-                              definition: p.definition,
-                            } as ParameterValuePMod)
-                            .success(() => {
-                              refresh();
-                              onModified();
-                            })
-                            .send();
-                        }}
-                      >
-                        <i className="bi bi-pencil"></i>{" "}
-                      </Button>
-                    ) : (
-                      <Button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          req(url + "/" + p.id)
-                            .method("DELETE")
-                            .success(() => {
-                              refresh();
-                              onModified();
-                            })
-                            .send();
-                        }}
-                      >
-                        <i className="bi bi-x"></i>{" "}
-                      </Button>
-                    )}
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </Table>
-      )}
-    />
-  );
-}
-
-interface LocationOption {
-  value: number;
-  label: string;
-}
-interface InventoryEntryPMod {
-  id: number;
-  locationName: string;
-  count: number;
-  locationId: number | null;
-  parameterValuesDescription: string;
-}
 export function EditInventoryEntries({
   url,
   onModified,
@@ -542,35 +470,11 @@ export function EditInventoryEntries({
       }}
       refresh={refreshListObservable}
       renderEdit={({ bind, value }) => {
-        const bindLocationId = bind("locationId").binding;
         return (
           <Form>
             <Input type="number" label="Count" {...bind("count")} />
             <Form.Label>Location</Form.Label>
-            <AsyncSelect<LocationOption>
-              defaultOptions
-              loadOptions={(
-                inputValue: string,
-                callback: (options: LocationOption[]) => void
-              ) => {
-                req(
-                  "api/location?name=" +
-                    encodeURIComponent(inputValue) +
-                    "&maxCount=10"
-                )
-                  .success((data: Location[]) =>
-                    callback(data.map((x) => ({ value: x.id, label: x.name })))
-                  )
-                  .send();
-              }}
-              value={
-                value.locationId == null
-                  ? null
-                  : { value: value.locationId, label: value.locationName }
-              }
-              onChange={(option) => bindLocationId.set(option?.value ?? null)}
-            />
-
+            <SelectLocation {...bind("locationId")} />
             <Form.Label>Parameter Values</Form.Label>
             <EditParameterValues
               url={"api/inventoryEntry/" + value.id + "/parameterValue"}
@@ -759,6 +663,7 @@ function useHandleImagePaste(partId?: number, onSuccess?: () => void) {
 
       for (let i = 0; i < event.clipboardData?.items.length ?? 0; i++) {
         const item = event.clipboardData.items[i];
+        console.log(item);
         if (item.type.startsWith("image")) {
           const file = item.getAsFile();
           if (file !== null) uploadFile(partId, file, onSuccess);

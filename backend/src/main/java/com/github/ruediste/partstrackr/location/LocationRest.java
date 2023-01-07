@@ -1,8 +1,6 @@
 package com.github.ruediste.partstrackr.location;
 
-import static java.util.stream.Collectors.toMap;
-
-import java.util.HashMap;
+import java.util.ArrayList;
 import java.util.List;
 
 import javax.persistence.EntityManager;
@@ -26,11 +24,18 @@ import org.springframework.util.StringUtils;
 @Produces(MediaType.APPLICATION_JSON)
 public class LocationRest {
 
+	public static class LocationPMod {
+		public long id;
+		public String name;
+		public boolean addedByIncludeId;
+	}
+
 	@PersistenceContext
 	private EntityManager em;
 
 	@GET
-	public List<Location> search(@QueryParam("name") String nameQuery, @QueryParam("maxCount") Integer maxCount) {
+	public List<LocationPMod> search(@QueryParam("name") String nameQuery, @QueryParam("maxCount") Integer maxCount,
+			@QueryParam("includeId") Long includeId) {
 		var cb = em.getCriteriaBuilder();
 		var q = cb.createQuery(Location.class);
 		var location = q.from(Location.class);
@@ -40,32 +45,45 @@ public class LocationRest {
 		var typedQuery = em.createQuery(q);
 		if (maxCount != null)
 			typedQuery.setMaxResults(maxCount);
-		var result = typedQuery.getResultList();
-		for (Location x : result) {
-			x.inventoryEntries.size();
-			x.parameterDefinitions.size();
+		var result = new ArrayList<>(typedQuery.getResultList().stream().map(this::toPMod).toList());
+
+		if (includeId != null && !result.stream().anyMatch(l -> l.id == includeId)) {
+			var tmp = em.find(Location.class, includeId);
+			if (tmp != null) {
+				var pMod = toPMod(tmp);
+				pMod.addedByIncludeId = true;
+				result.add(pMod);
+			}
 		}
 		return result;
 	}
 
+	private LocationPMod toPMod(Location location) {
+		if (location == null)
+			return null;
+		var pMod = new LocationPMod();
+		pMod.id = location.id;
+		pMod.name = location.name;
+		return pMod;
+	}
+
+	private void update(Location location, LocationPMod pMod) {
+		location.name = pMod.name;
+	}
+
 	@POST
-	public Location add(Location newLocation) {
+	public LocationPMod add(LocationPMod pMod) {
+		Location newLocation = new Location();
+		update(newLocation, pMod);
 		em.persist(newLocation);
-		for (var def : newLocation.parameterDefinitions) {
-			def.location = newLocation;
-			em.persist(def);
-		}
 		em.flush();
-		return newLocation;
+		return toPMod(newLocation);
 	}
 
 	@GET
 	@Path("{id}")
-	public Location get(@PathParam("id") long id) {
-		Location result = em.find(Location.class, id);
-		result.parameterDefinitions.size();
-		result.inventoryEntries.size();
-		return result;
+	public LocationPMod get(@PathParam("id") long id) {
+		return toPMod(em.find(Location.class, id));
 	}
 
 	@DELETE
@@ -76,22 +94,10 @@ public class LocationRest {
 
 	@POST
 	@Path("{id}")
-	public Location update(@PathParam("id") long id, Location newLocation) {
-		newLocation.id = id;
+	public LocationPMod update(@PathParam("id") long id, LocationPMod newLocation) {
 		var location = em.find(Location.class, id);
-		var existingLocations = new HashMap<>(location.parameterDefinitions.stream().collect(toMap(x -> x.id, x -> x)));
-		em.merge(newLocation);
-		for (var def : newLocation.parameterDefinitions) {
-			def.location = location;
-			if (def.id == 0)
-				em.persist(def);
-			else {
-				em.merge(def);
-				existingLocations.remove(def.id);
-			}
-		}
-		existingLocations.values().forEach(def -> em.remove(def));
-		return location;
+		update(location, newLocation);
+		return toPMod(location);
 	}
 
 	@GET

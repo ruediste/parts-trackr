@@ -9,7 +9,7 @@ import {
 } from "react-router-dom";
 import { EditParameterDefinitions } from "./EditParameterDefinitions";
 import Input from "./Input";
-import { Location } from "./Location";
+import { LocationPMod } from "./Location";
 import { Observable, req, useObservable } from "./useData";
 import WithData from "./WithData";
 import { WithEdit } from "./WithEdit";
@@ -24,7 +24,7 @@ function EditLocation({
   const navigate = useNavigate();
   const url = "api/location/" + id;
   return (
-    <WithEdit<Location>
+    <WithEdit<LocationPMod>
       key={id}
       url={url}
       onSuccess={onSuccess}
@@ -68,7 +68,7 @@ function LocationsList({
 }) {
   const [name, setName] = useState("");
   return (
-    <WithData<Location[]>
+    <WithData<LocationPMod[]>
       url="api/location"
       queryParams={{ name }}
       refresh={refresh}

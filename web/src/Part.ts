@@ -1,21 +1,22 @@
 import { ParameterDefinitionBase } from "./Location";
 
-export interface PartTreeItem {
+export interface PartListItem {
   id: number;
   hasChildren: boolean;
   name: string;
   cells: string[];
   inventorySum: number;
+  children: PartList | null;
 }
 
-export interface PartTreeColumn {
+export interface PartListColumn {
   label: string;
   unit: string;
 }
 
-export interface SubTree {
-  items: PartTreeItem[];
-  columns: PartTreeColumn[];
+export interface PartList {
+  items: PartListItem[];
+  columns: PartListColumn[];
 }
 
 export interface PartParameterDefinition extends ParameterDefinitionBase {}
