@@ -1,4 +1,5 @@
 import LocationsPage from "./LocationsPage";
+import OperationsPage from "./OperationsPage";
 import RoutingNav from "./RoutingNav";
 
 export default function SettingsPage() {
@@ -6,6 +7,7 @@ export default function SettingsPage() {
     <RoutingNav
       entries={[
         { path: "locations", label: "Locations", element: LocationsPage },
+        { path: "operations", label: "Operations", element: OperationsPage },
       ]}
     />
   );

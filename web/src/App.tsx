@@ -13,6 +13,7 @@ import "react-toastify/dist/ReactToastify.css";
 import InventoryEntriesPage from "./InventoryEntriesPage";
 import PartsPage from "./PartsPage";
 import PhotoUpload from "./PhotoUpload";
+import SearchPartPage from "./SearchPartPage";
 import SettingsPage from "./SettingsPage";
 
 interface NavEntry {
@@ -23,6 +24,7 @@ interface NavEntry {
 
 let navEntries: NavEntry[] = [
   { title: "Parts", path: "/parts", component: PartsPage },
+  { title: "Search", path: "/search", component: SearchPartPage },
   {
     title: "Inventory Entries",
     path: "/inventoryEntries",

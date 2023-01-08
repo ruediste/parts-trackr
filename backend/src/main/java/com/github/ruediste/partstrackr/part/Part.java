@@ -61,15 +61,31 @@ public class Part {
 
 	public static Comparator<Part> COMPARE_BY_NAME = Comparator.comparing(x -> x.name);
 
-	public List<Part> path() {
-		var tmp = ancestors();
+	public List<Part> pathIncludingSelf() {
+		var tmp = ancestorsIncludingSelf();
 		Collections.reverse(tmp);
 		return tmp;
 	}
 
-	public List<Part> ancestors() {
+	public List<Part> ancestorsIncludingSelf() {
 		List<Part> result = new ArrayList<>();
 		Part p = this;
+		while (p != null) {
+			result.add(p);
+			p = p.parent;
+		}
+		return result;
+	}
+
+	public List<Part> pathExcludingSelf() {
+		var tmp = ancestorsExcludingSelf();
+		Collections.reverse(tmp);
+		return tmp;
+	}
+
+	public List<Part> ancestorsExcludingSelf() {
+		List<Part> result = new ArrayList<>();
+		Part p = this.parent;
 		while (p != null) {
 			result.add(p);
 			p = p.parent;
@@ -88,7 +104,7 @@ public class Part {
 
 	public Map<PartParameterDefinition, PartParameterValue> getAllParameterMap() {
 		Map<PartParameterDefinition, PartParameterValue> map = new HashMap<>();
-		for (Part p : path()) {
+		for (Part p : pathIncludingSelf()) {
 			p.parameterDefinitions.forEach(def -> map.put(def, null));
 			p.parameterValues.forEach(value -> map.put(value.definition, value));
 		}
@@ -126,9 +142,7 @@ public class Part {
 		var nameParameterDefinition = nameParameterDefinition();
 		if (nameParameterDefinition != null) {
 			var value = parameterValue(nameParameterDefinition);
-			if (value == null)
-				return "";
-			else
+			if (value != null)
 				return nameParameterDefinition.format(value);
 		}
 		return name;

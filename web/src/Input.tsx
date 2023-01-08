@@ -64,6 +64,7 @@ export interface InputPropsString extends InputPropsBase {
   type?: "text";
   binding: Binding<string>;
 }
+
 export interface InputPropsTextArea extends InputPropsBase {
   type: "textarea";
   binding: Binding<string>;
@@ -72,11 +73,19 @@ export interface InputPropsTextArea extends InputPropsBase {
 
 export interface InputPropsNumber extends InputPropsBase {
   type: "number";
-  binding: Binding<number>;
+  binding: Binding<number | null>;
+}
+export interface InputPropsBoolean extends InputPropsBase {
+  type: "boolean";
+  binding: Binding<boolean>;
 }
 
 export default function Input(
-  props: InputPropsString | InputPropsNumber | InputPropsTextArea
+  props:
+    | InputPropsString
+    | InputPropsNumber
+    | InputPropsTextArea
+    | InputPropsBoolean
 ) {
   const update = useForceUpdate();
   const [value, setValue] = useState("");
@@ -94,28 +103,42 @@ export default function Input(
   }, [props.reloadValue, props.binding]);
   return (
     <Form.Group className={props.noMarginBottom === true ? undefined : "mb-3"}>
-      {props.label === undefined ? null : (
-        <Form.Label>{props.label}</Form.Label>
-      )}
       <InputGroup>
-        <Form.Control
-          type={props.type}
-          placeholder={props.placeholder}
-          value={value}
-          onChange={(e) => setValue(e.target.value)}
-          as={props.type === "textarea" ? "textarea" : undefined}
-          rows={props.type === "textarea" ? props.rows : undefined}
-          onBlur={() => {
-            if (
-              props.type === undefined ||
-              props.type === "text" ||
-              props.type === "textarea"
-            )
-              return props.binding.set(value).then(update);
-            else if (props.type === "number")
-              return props.binding.set(parseFloat(value)).then(update);
-          }}
-        />
+        {props.type === "boolean" ? (
+          <Form.Check
+            type="checkbox"
+            label={props.label}
+            checked={props.binding.get()}
+            onChange={(e) => props.binding.set(e.target.checked)}
+          />
+        ) : (
+          <>
+            {props.label === undefined ? null : (
+              <Form.Label>{props.label}</Form.Label>
+            )}
+            <Form.Control
+              type={props.type}
+              placeholder={props.placeholder}
+              value={value}
+              onChange={(e) => setValue(e.target.value)}
+              as={props.type === "textarea" ? "textarea" : undefined}
+              rows={props.type === "textarea" ? props.rows : undefined}
+              onBlur={() => {
+                if (
+                  props.type === undefined ||
+                  props.type === "text" ||
+                  props.type === "textarea"
+                )
+                  return props.binding.set(value).then(update);
+                else if (props.type === "number") {
+                  let parsed: number | null = parseFloat(value);
+                  if (isNaN(parsed)) parsed = null;
+                  return props.binding.set(parsed).then(update);
+                }
+              }}
+            />
+          </>
+        )}
         {props.afterElement}
       </InputGroup>
     </Form.Group>

@@ -1,3 +1,4 @@
+import { PartReference } from "./InventoryEntry";
 import { ParameterDefinitionBase } from "./Location";
 
 export interface PartListItem {
@@ -28,7 +29,7 @@ export interface ParameterValuePMod {
   inherited: boolean;
 }
 
-export default interface Part {
+export default interface PartPMod {
   id: number;
   parentId?: number;
   name: string;
@@ -37,4 +38,5 @@ export default interface Part {
   parameterValues: ParameterValuePMod[];
   nameSetByParameterDefinition: boolean;
   childNameParameterDefinitionId: number | null;
+  path: PartReference[];
 }

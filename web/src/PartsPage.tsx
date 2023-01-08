@@ -8,7 +8,7 @@ import EditParameterValues from "./EditParameterValues";
 import Input, { Select } from "./Input";
 import { InventoryEntryPMod } from "./InventoryEntry";
 import { SelectLocation } from "./Location";
-import Part, { PartList, PartListItem } from "./Part";
+import PartPMod, { PartList, PartListItem } from "./Part";
 import { Observable, post, req, useObservable } from "./useData";
 import WithData from "./WithData";
 import { RenderEdit, WithEdit } from "./WithEdit";
@@ -74,8 +74,8 @@ function PartsPageInner({
   const ctx: PartPageCtx = {
     add: (parentId, onModified) => {
       post("api/part")
-        .body({ parentId } as Partial<Part>)
-        .success((part: Part) => {
+        .body({ parentId } as Partial<PartPMod>)
+        .success((part: PartPMod) => {
           toast.success("Saved");
           if (edit !== undefined) edit.onModified();
           setEdit({
@@ -356,7 +356,7 @@ function DisplayPartListItem({
   );
 }
 
-function EditPart({
+export function EditPart({
   close,
   id,
   onModified,
@@ -369,7 +369,7 @@ function EditPart({
 }) {
   const url = "api/part/" + id;
   return (
-    <WithEdit<Part>
+    <WithEdit<PartPMod>
       url={url}
       onSuccess={onModified}
       render={({ bind, value }) => (
@@ -498,10 +498,79 @@ interface PartDocument {
   name: string;
   fileName: string;
   mimeType: string;
+  primaryPhoto: boolean;
+}
+
+export function FileUploadInput({
+  url,
+  refresh,
+  accept,
+}: {
+  url: string;
+  refresh: () => void;
+  accept?: string;
+}) {
+  const [uploadingFiles, setUploadingFiles] = useState<UploadingFile[]>([]);
+  return (
+    <Form>
+      <Form.Group className="mb-3">
+        <Form.Label>Upload Document</Form.Label>
+        <Form.Control
+          type="file"
+          multiple
+          accept={accept}
+          onChange={(e) => {
+            const files: FileList | null = (e.target as any).files;
+            if (files == null) return;
+            const tmp: UploadingFile[] = [];
+            for (var i = 0; i < files.length; i++) {
+              const file = files.item(i);
+              if (file == null) continue;
+              const uploadingFile = { name: file.name, progress: 0 };
+              tmp.push(uploadingFile);
+              post(url)
+                .bodyRaw(file)
+                .query({ name: file.name })
+                .success((data) => {
+                  toast.success(file.name + " uploaded");
+                  setUploadingFiles((old) =>
+                    old.filter((x) => x !== uploadingFile)
+                  );
+                  refresh();
+                })
+                .upload(({ loaded, total }) => {
+                  console.log(loaded, total);
+                  uploadingFile.progress = Math.round((100 * loaded) / total);
+                  setUploadingFiles((old) => [...old]); // force refresh
+                });
+            }
+            setUploadingFiles((old) => [...old, ...tmp]);
+
+            // clear the selected files
+            e.target.value = "";
+          }}
+        />
+      </Form.Group>
+      {uploadingFiles.map((file, idx) => (
+        <div key={idx} className="d-flex align-items-center">
+          <span>{file.name}</span>
+          <div className="progress flex-fill">
+            <div
+              className="progress-bar"
+              role="progressbar"
+              style={{ width: file.progress + "%" }}
+              aria-valuenow={file.progress}
+              aria-valuemin={0}
+              aria-valuemax={100}
+            ></div>
+          </div>
+        </div>
+      ))}
+    </Form>
+  );
 }
 
 function EditDocuments({ url, refresh }: { url: string; refresh: Observable }) {
-  const [uploadingFiles, setUploadingFiles] = useState<UploadingFile[]>([]);
   return (
     <WithData<PartDocument[]>
       refresh={refresh}
@@ -509,45 +578,7 @@ function EditDocuments({ url, refresh }: { url: string; refresh: Observable }) {
       render={(documents, refresh) => (
         <>
           <Form>
-            <Form.Group className="mb-3">
-              <Form.Label>Upload Document</Form.Label>
-              <Form.Control
-                type="file"
-                multiple
-                onChange={(e) => {
-                  const files: FileList | null = (e.target as any).files;
-                  if (files == null) return;
-                  const tmp: UploadingFile[] = [];
-                  for (var i = 0; i < files.length; i++) {
-                    const file = files.item(i);
-                    if (file == null) continue;
-                    const uploadingFile = { name: file.name, progress: 0 };
-                    tmp.push(uploadingFile);
-                    post(url)
-                      .bodyRaw(file)
-                      .query({ name: file.name })
-                      .success((data) => {
-                        toast.success(file.name + " uploaded");
-                        setUploadingFiles((old) =>
-                          old.filter((x) => x !== uploadingFile)
-                        );
-                        refresh();
-                      })
-                      .upload(({ loaded, total }) => {
-                        console.log(loaded, total);
-                        uploadingFile.progress = Math.round(
-                          (100 * loaded) / total
-                        );
-                        setUploadingFiles((old) => [...old]);
-                      });
-                  }
-                  setUploadingFiles((old) => [...old, ...tmp]);
-
-                  // clear the selected files
-                  e.target.value = "";
-                }}
-              />
-            </Form.Group>
+            <FileUploadInput {...{ url, refresh }} />
           </Form>
           <Table bordered hover style={{ height: "1px" /* ignored */ }}>
             <thead>
@@ -555,6 +586,7 @@ function EditDocuments({ url, refresh }: { url: string; refresh: Observable }) {
                 <th></th>
                 <th>Name</th>
                 <th>Mime Type</th>
+                <th>Primary</th>
                 <th></th>
               </tr>
             </thead>
@@ -586,10 +618,17 @@ function EditDocuments({ url, refresh }: { url: string; refresh: Observable }) {
                         </a>
                       </td>
                       <td>
-                        <Input noMarginBottom {...bind("name")} />{" "}
+                        <Input noMarginBottom {...bind("name")} />
                       </td>
                       <td>
-                        <Input noMarginBottom {...bind("mimeType")} />{" "}
+                        <Input noMarginBottom {...bind("mimeType")} />
+                      </td>
+                      <td>
+                        <Input
+                          noMarginBottom
+                          type="boolean"
+                          {...bind("primaryPhoto")}
+                        />
                       </td>
                       <td>
                         <Button
@@ -610,21 +649,7 @@ function EditDocuments({ url, refresh }: { url: string; refresh: Observable }) {
               ))}
             </tbody>
           </Table>
-          {uploadingFiles.map((file, idx) => (
-            <div key={idx} className="d-flex align-items-center">
-              <span>{file.name}</span>
-              <div className="progress flex-fill">
-                <div
-                  className="progress-bar"
-                  role="progressbar"
-                  style={{ width: file.progress + "%" }}
-                  aria-valuenow={file.progress}
-                  aria-valuemin={0}
-                  aria-valuemax={100}
-                ></div>
-              </div>
-            </div>
-          ))}
+
           <div
             style={{
               display: "flex",

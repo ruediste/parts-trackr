@@ -56,7 +56,7 @@ export function EditParameterValueNoLoad({
     binding: {
       get: () => (value == null ? null : parseFloat(value)),
       set: async (v) => {
-        setValue("" + v ?? "");
+        setValue(v === null ? null : "" + v);
       },
     } as Binding<number | null>,
   });

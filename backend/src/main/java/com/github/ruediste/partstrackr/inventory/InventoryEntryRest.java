@@ -1,6 +1,5 @@
 package com.github.ruediste.partstrackr.inventory;
 
-import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
@@ -8,7 +7,6 @@ import java.util.stream.Collectors;
 
 import javax.persistence.EntityManager;
 import javax.persistence.PersistenceContext;
-import javax.persistence.criteria.Predicate;
 import javax.transaction.Transactional;
 import javax.ws.rs.DELETE;
 import javax.ws.rs.GET;
@@ -25,9 +23,11 @@ import org.springframework.stereotype.Component;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.github.ruediste.partstrackr.EmQuery;
 import com.github.ruediste.partstrackr.location.LocationParameterDefinition;
 import com.github.ruediste.partstrackr.location.LocationParameterDefinition_;
 import com.github.ruediste.partstrackr.location.Location_;
+import com.github.ruediste.partstrackr.part.Part;
 
 @Component
 @Transactional
@@ -46,6 +46,20 @@ public class InventoryEntryRest {
 		public String value;
 	}
 
+	public static class PartReference {
+		public long id;
+		public String name;
+
+		public static PartReference of(Part part) {
+			if (part == null)
+				return null;
+			PartReference ref = new PartReference();
+			ref.id = part.id;
+			ref.name = part.calculateName();
+			return ref;
+		}
+	}
+
 	public static class InventoryEntryPMod {
 		public String locationName;
 		public long id;
@@ -53,51 +67,50 @@ public class InventoryEntryRest {
 		public Long locationId;
 		public String parameterValuesDescription;
 
-		public String partName;
+		public PartReference part;
+
+		public List<PartReference> path = List.of();
+	}
+
+	public <T> List<T> emQuery(EntityManager em, Class<T> cls) {
+		return new EmQuery<T>(em, cls).getResultList();
 	}
 
 	@GET
 	public List<InventoryEntryPMod> search(@QueryParam("maxCount") Integer maxCount,
 			@QueryParam("locationId") Integer locationId, @QueryParam("parameterValues") String parameterValues) {
 
-		var cb = em.getCriteriaBuilder();
-		var q = cb.createQuery(InventoryEntry.class);
-		var entry = q.from(InventoryEntry.class);
-		q.select(entry);
-		List<Predicate> where = new ArrayList<>();
-		if (locationId != null) {
-			where.add(cb.equal(entry.get(InventoryEntry_.location).get(Location_.id), locationId));
-		}
-
-		if (parameterValues != null) {
-			try {
-				var values = objectMapper.readValue(parameterValues, new TypeReference<Map<Long, String>>() {
-				});
-				for (var valueEntry : values.entrySet()) {
-					System.out.println(valueEntry.getKey() + ": " + valueEntry.getValue());
-					if (valueEntry.getValue() == null || valueEntry.getValue().isEmpty())
-						continue;
-					var sub = q.subquery(LocationParameterValue.class);
-					var subFrom = sub.from(LocationParameterValue.class);
-					sub.select(subFrom);
-					sub.where(
-							cb.equal(subFrom.get(LocationParameterValue_.definition)
-									.get(LocationParameterDefinition_.id), valueEntry.getKey()),
-							cb.equal(subFrom.get(LocationParameterValue_.value), valueEntry.getValue()),
-							cb.equal(subFrom.get(LocationParameterValue_.entry), entry));
-
-					where.add(cb.exists(sub));
+		return new EmQuery<>(em, InventoryEntry.class) {
+			{
+				if (locationId != null) {
+					where.add(cb.equal(root.get(InventoryEntry_.location).get(Location_.id), locationId));
 				}
-			} catch (JsonProcessingException e) {
-				throw new RuntimeException(e);
-			}
-		}
-		q.where(where.toArray(new Predicate[where.size()]));
 
-		var typedQuery = em.createQuery(q);
-		if (maxCount != null)
-			typedQuery.setMaxResults(maxCount);
-		return typedQuery.getResultList().stream().map(this::toPMod).toList();
+				if (parameterValues != null) {
+					try {
+						var values = objectMapper.readValue(parameterValues, new TypeReference<Map<Long, String>>() {
+						});
+						for (var valueEntry : values.entrySet()) {
+							if (valueEntry.getValue() == null || valueEntry.getValue().isEmpty())
+								continue;
+							new EmSubQuery<>(LocationParameterValue.class) {
+								{
+									where.add(cb.equal(subFrom.get(LocationParameterValue_.definition)
+											.get(LocationParameterDefinition_.id), valueEntry.getKey()));
+									where.add(cb.equal(subFrom.get(LocationParameterValue_.value),
+											valueEntry.getValue()));
+									where.add(cb.equal(subFrom.get(LocationParameterValue_.entry), root));
+								}
+							}.whereExists();
+						}
+					} catch (JsonProcessingException e) {
+						throw new RuntimeException(e);
+					}
+				}
+				if (maxCount != null)
+					setMaxResults(maxCount);
+			}
+		}.getResultList().stream().map(this::toPMod).toList();
 	}
 
 	@GET
@@ -112,7 +125,8 @@ public class InventoryEntryRest {
 		pMod.count = entry.count;
 
 		if (entry.part != null) {
-			pMod.partName = entry.part.name;
+			pMod.part = PartReference.of(entry.part);
+			pMod.path = entry.part.pathExcludingSelf().stream().map(PartReference::of).toList();
 		}
 
 		if (entry.location != null) {

@@ -12,6 +12,7 @@ import java.util.stream.Collectors;
 
 import javax.persistence.EntityManager;
 import javax.persistence.PersistenceContext;
+import javax.persistence.TypedQuery;
 import javax.ws.rs.Consumes;
 import javax.ws.rs.DELETE;
 import javax.ws.rs.GET;
@@ -33,6 +34,7 @@ import com.github.ruediste.partstrackr.document.DocumentService;
 import com.github.ruediste.partstrackr.inventory.InventoryEntry;
 import com.github.ruediste.partstrackr.inventory.InventoryEntryRest;
 import com.github.ruediste.partstrackr.inventory.InventoryEntryRest.InventoryEntryPMod;
+import com.github.ruediste.partstrackr.inventory.InventoryEntryRest.PartReference;
 import com.github.ruediste.partstrackr.inventory.LocationParameterValue;
 import com.github.ruediste.partstrackr.location.Location;
 
@@ -77,14 +79,18 @@ public class PartRest {
 	}
 
 	@GET
-	public List<Part> search(@QueryParam("name") String nameQuery) {
+	public List<PartPMod> search(@QueryParam("filter") String filter, @QueryParam("maxResults") Integer maxResults) {
 		var cb = em.getCriteriaBuilder();
 		var q = cb.createQuery(Part.class);
 		var part = q.from(Part.class);
 		q.select(part);
-		if (StringUtils.hasText(nameQuery))
-			q.where(cb.like(part.get(Part_.name), "%" + nameQuery + "%"));
-		return em.createQuery(q).getResultList();
+		if (StringUtils.hasText(filter))
+			q.where(cb.or(cb.like(part.get(Part_.name), "%" + filter + "%"),
+					cb.like(part.get(Part_.comment), "%" + filter + "%")));
+		TypedQuery<Part> query = em.createQuery(q);
+		if (maxResults != null)
+			query.setMaxResults(maxResults);
+		return query.getResultList().stream().map(this::toPMod).toList();
 	}
 
 	@GET
@@ -107,7 +113,7 @@ public class PartRest {
 		Part part = em.find(Part.class, id);
 		PartList result = toPartList(null, service.getRootParts());
 		PartList currentList = result;
-		for (var ancestor : part.path()) {
+		for (var ancestor : part.pathIncludingSelf()) {
 			var item = currentList.items.stream().filter(x -> x.id == ancestor.id).findFirst().get();
 			item.children = toPartList(ancestor, ancestor.children);
 			currentList = item.children;
@@ -165,6 +171,7 @@ public class PartRest {
 		public List<PartParameterValuePMod> parameterValues = new ArrayList<>();
 		public boolean nameSetByParameterDefinition;
 		public String comment;
+		public List<PartReference> path = List.of();
 	}
 
 	public void updatePart(Part part, PartPMod pMod) {
@@ -357,6 +364,8 @@ public class PartRest {
 		pMod.parameterValues = part.getAllParameters().stream().map(pair -> {
 			return toPMod(part, pair);
 		}).toList();
+
+		pMod.path = part.pathExcludingSelf().stream().map(PartReference::of).toList();
 		return pMod;
 	}
 

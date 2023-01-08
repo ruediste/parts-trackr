@@ -27,4 +27,6 @@ public class Document {
 	public String mimeType;
 
 	public String fileName;
+
+	public boolean primaryPhoto;
 }

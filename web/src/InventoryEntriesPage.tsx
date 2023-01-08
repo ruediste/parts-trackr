@@ -5,15 +5,25 @@ import EditParameterValues, {
   EditParameterValueNoLoad,
 } from "./EditParameterValues";
 import Input from "./Input";
-import { InventoryEntryPMod } from "./InventoryEntry";
+import { InventoryEntryPMod, PartReference } from "./InventoryEntry";
 import { LocationParameterDefinition, SelectLocation } from "./Location";
 import { useStateAndBind } from "./useBinding";
 import { useObservable } from "./useData";
 import WithData from "./WithData";
 
+export function LinkToPart({ part }: { part: PartReference }) {
+  return (
+    <a href={`/parts/${part.id}`} target="_blank" rel="noopener noreferrer">
+      {part.name}
+    </a>
+  );
+}
+
 export default function InventoryEntriesPage() {
   const [refreshListObservable, refreshList] = useObservable();
-  const [locationId, , bindLocationId] = useStateAndBind<number | null>(null);
+  const [locationId, , { binding: bindLocationId }] = useStateAndBind<
+    number | null
+  >(null);
   const [parameterValues, setParameterValues] = useState<{
     [key: number]: string;
   }>({});
@@ -21,7 +31,15 @@ export default function InventoryEntriesPage() {
   return (
     <>
       <Form>
-        <SelectLocation {...bindLocationId} />
+        <SelectLocation
+          binding={{
+            get: bindLocationId.get,
+            set: (v) => {
+              setParameterValues({});
+              return bindLocationId.set(v);
+            },
+          }}
+        />
         {locationId == null ? null : (
           <WithData<LocationParameterDefinition[]>
             url={`api/location/${locationId}/parameterDefinition`}
@@ -57,7 +75,23 @@ export default function InventoryEntriesPage() {
       <EditList<InventoryEntryPMod, InventoryEntryPMod>
         horizontal
         columns={[
-          { label: "Part", render: (p) => p.partName },
+          {
+            label: "Path",
+            render: (p) => (
+              <ol className="breadcrumb">
+                {p.path.map((parent) => (
+                  <li className="breadcrumb-item" key={parent.id}>
+                    <LinkToPart part={parent} />
+                  </li>
+                ))}
+              </ol>
+            ),
+          },
+          {
+            label: "Part",
+            render: (p) =>
+              p.part === null ? null : <LinkToPart part={p.part} />,
+          },
           { label: "Location", render: (p) => p.locationName },
           { label: "Count", render: (p) => "" + p.count },
           { label: "Values", render: (p) => p.parameterValuesDescription },

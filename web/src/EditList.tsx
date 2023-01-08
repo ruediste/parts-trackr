@@ -42,6 +42,7 @@ export function EditList<
               display: "flex",
               flexDirection: horizontal ? "row" : "column",
               columnGap: horizontal ? "10px" : undefined,
+              alignItems: "start",
             }}
           >
             <Table

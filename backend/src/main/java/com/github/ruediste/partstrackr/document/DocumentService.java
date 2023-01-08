@@ -7,6 +7,8 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.List;
+import java.util.Locale;
 import java.util.stream.Collectors;
 
 import javax.persistence.EntityManager;
@@ -45,6 +47,7 @@ public class DocumentService {
 
 		var doc = new Document();
 		doc.part = part;
+		part.documents.add(doc);
 		doc.name = fileName;
 		doc.fileName = URLEncoder.encode(fileName, StandardCharsets.UTF_8);
 		var extension = "";
@@ -63,6 +66,7 @@ public class DocumentService {
 		default -> MediaType.APPLICATION_OCTET_STREAM;
 		};
 
+		updatePrimaryPhoto(doc);
 		em.persist(doc);
 		em.flush();
 		var path = getFilePath(doc);
@@ -81,5 +85,49 @@ public class DocumentService {
 		}
 
 		return doc;
+	}
+
+	public void deleteDocument(long id) {
+		var doc = em.find(Document.class, id);
+		var path = getFilePath(doc);
+
+		// delete file itself
+		try {
+			Files.deleteIfExists(path);
+		} catch (IOException e) {
+			throw new RuntimeException("Error wile deleting " + path.toAbsolutePath(), e);
+		}
+
+		// delete empty parent folders
+		for (int i = 0; i < 3; i++) {
+			path = path.getParent();
+			try {
+				if (Files.list(path).count() == 0) {
+					Files.delete(path);
+				}
+			} catch (IOException e) {
+				throw new RuntimeException("Error wile deleting " + path.toAbsolutePath(), e);
+			}
+		}
+		doc.part.documents.remove(doc);
+		em.remove(doc);
+		updatePrimaryPhoto(doc);
+	}
+
+	public void updatePrimaryPhoto(Document doc) {
+		updatePrimaryPhoto(doc.part);
+	}
+
+	public void updatePrimaryPhoto(Part part) {
+		var primaryPhotos = part.documents.stream().filter(x -> x.primaryPhoto).toList();
+		if (primaryPhotos.isEmpty()) {
+			part.documents.stream()
+					.filter(x -> List.of("image/jpg", "image/jpeg").contains(x.mimeType.toLowerCase(Locale.ENGLISH)))
+					.findFirst().ifPresent(x -> x.primaryPhoto = true);
+		}
+
+		if (primaryPhotos.size() > 1) {
+			primaryPhotos.stream().skip(1).forEach(x -> x.primaryPhoto = false);
+		}
 	}
 }

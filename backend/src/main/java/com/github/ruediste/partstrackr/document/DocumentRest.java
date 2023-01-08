@@ -1,8 +1,5 @@
 package com.github.ruediste.partstrackr.document;
 
-import java.io.IOException;
-import java.nio.file.Files;
-
 import javax.persistence.EntityManager;
 import javax.persistence.PersistenceContext;
 import javax.ws.rs.DELETE;
@@ -17,6 +14,10 @@ import javax.ws.rs.core.Response;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
+
+import com.github.ruediste.partstrackr.EmQuery;
+import com.github.ruediste.partstrackr.part.Part;
+import com.github.ruediste.partstrackr.part.Part_;
 
 @Component
 @Transactional
@@ -43,32 +44,42 @@ public class DocumentRest {
 		var entity = em.find(Document.class, id);
 		entity.name = doc.name;
 		entity.mimeType = doc.mimeType;
+		if (entity.primaryPhoto != doc.primaryPhoto) {
+			if (doc.primaryPhoto)
+				entity.part.documents.forEach(d -> d.primaryPhoto = false);
+			entity.primaryPhoto = doc.primaryPhoto;
+			service.updatePrimaryPhoto(entity);
+		}
 	}
 
 	@DELETE
 	@Path("{id}")
 	public void deleteDocument(@PathParam("id") long id) {
-		var doc = em.find(Document.class, id);
-		var path = service.getFilePath(doc);
+		service.deleteDocument(id);
+	}
 
-		// delete file itself
-		try {
-			Files.deleteIfExists(path);
-		} catch (IOException e) {
-			throw new RuntimeException("Error wile deleting " + path.toAbsolutePath(), e);
-		}
-
-		// delete empty parent folders
-		for (int i = 0; i < 3; i++) {
-			path = path.getParent();
-			try {
-				if (Files.list(path).count() == 0) {
-					Files.delete(path);
+	@POST
+	@Path("_updateAllPrimaryPhotos")
+	public void updateAllPrimaryPhotos() {
+		Long lastId = null;
+		while (true) {
+			var lastIdF = lastId;
+			var nextParts = new EmQuery<>(em, Part.class) {
+				{
+					if (lastIdF != null) {
+						where.add(cb.gt(root.get(Part_.id), lastIdF));
+					}
+					q.orderBy(cb.asc(root.get(Part_.id)));
+					setMaxResults(10);
 				}
-			} catch (IOException e) {
-				throw new RuntimeException("Error wile deleting " + path.toAbsolutePath(), e);
-			}
+			}.getResultList();
+
+			nextParts.forEach(service::updatePrimaryPhoto);
+			em.flush();
+			em.clear();
+			if (nextParts.size() < 10)
+				return;
+			lastId = nextParts.get(nextParts.size() - 1).id;
 		}
-		em.remove(doc);
 	}
 }
