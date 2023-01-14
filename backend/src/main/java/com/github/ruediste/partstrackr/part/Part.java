@@ -7,6 +7,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -148,6 +149,10 @@ public class Part {
 		return name;
 	}
 
+	public Comparator<Part> childrenComparator() {
+		return childrenComparator(this);
+	}
+
 	public static Comparator<Part> childrenComparator(Part parent) {
 		if (parent != null && parent.childNameParameterDefinition != null) {
 			return Comparator.comparing(child -> child.nameParameterValue(),
@@ -155,5 +160,14 @@ public class Part {
 		} else {
 			return Comparator.comparing(x -> x.name, Comparator.nullsLast(Comparator.naturalOrder()));
 		}
+	}
+
+	public Optional<Document> primaryPhoto() {
+		return documents.stream().filter(x -> x.primaryPhoto).findFirst();
+	}
+
+	public String parameterValuesDescription() {
+		return parameterValues.stream().sorted(Comparator.comparing(x -> x.definition.name))
+				.map(x -> x.definition.name + ": " + x.definition.format(x.value)).collect(Collectors.joining((", ")));
 	}
 }

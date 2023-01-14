@@ -2,6 +2,7 @@ package com.github.ruediste.partstrackr;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Function;
 
 import javax.persistence.EntityManager;
 import javax.persistence.TypedQuery;
@@ -36,12 +37,20 @@ public class EmQuery<T> {
 		return typedQuery;
 	}
 
+	protected void where(Predicate p) {
+		where.add(p);
+	}
+
 	protected void setMaxResults(int maxResults) {
 		typedQuery().setMaxResults(maxResults);
 	}
 
 	public List<T> getResultList() {
 		return typedQuery().getResultList();
+	}
+
+	public <R> List<R> getResultList(Function<T, R> mapper) {
+		return typedQuery().getResultList().stream().map(mapper).toList();
 	}
 
 	public class EmSubQuery<TSub> {

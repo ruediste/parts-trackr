@@ -1,6 +1,8 @@
 package com.github.ruediste.partstrackr.inventory;
 
+import java.util.Comparator;
 import java.util.List;
+import java.util.stream.Collectors;
 
 import javax.persistence.Entity;
 import javax.persistence.FetchType;
@@ -29,4 +31,9 @@ public class InventoryEntry {
 	public List<LocationParameterValue> parameterValues;
 
 	public int count;
+
+	public String parameterValuesDescription() {
+		return parameterValues.stream().sorted(Comparator.comparing(x -> x.definition.name))
+				.map(x -> x.definition.name + ": " + x.definition.format(x.value)).collect(Collectors.joining((", ")));
+	}
 }

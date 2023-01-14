@@ -1,8 +1,7 @@
 import { Form } from "react-bootstrap";
 import { EditList } from "./EditList";
 import Input from "./Input";
-import { LinkToPart } from "./InventoryEntriesPage";
-import PartPMod from "./Part";
+import PartPMod, { LinkToPart } from "./Part";
 import { EditPart } from "./PartsPage";
 import { useStateAndBind } from "./useBinding";
 import { useObservable } from "./useData";
@@ -52,7 +51,6 @@ export default function SearchPartPage() {
         refresh={refreshListObservable}
         renderEdit={({ bind, value }) => (
           <EditPart
-            close={() => {}}
             id={value.id}
             onModified={() => refreshList()}
             refreshDocuments={refreshDocumentsObservable}

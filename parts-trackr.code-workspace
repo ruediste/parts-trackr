@@ -18,15 +18,15 @@
 			"source.fixAll": true,
 			"source.organizeImports": true
 		},
-		"java.configuration.updateBuildConfiguration": "interactive",
+		"java.configuration.updateBuildConfiguration": "automatic",
 		"java.configuration.runtimes": [
 			{
 				"name": "JavaSE-18",
 				"path": "/usr/lib/jvm/java-18-openjdk-amd64",
-				"sources" : "/usr/lib/jvm/openjdk-18/lib/src.zip",
-				"javadoc" : "https://docs.oracle.com/en/java/javase/18/docs/api",
-				"default":  true
-			   }
+				"sources": "/usr/lib/jvm/openjdk-18/lib/src.zip",
+				"javadoc": "https://docs.oracle.com/en/java/javase/18/docs/api",
+				"default": true
+			}
 		]
 	}
 }

@@ -5,19 +5,12 @@ import EditParameterValues, {
   EditParameterValueNoLoad,
 } from "./EditParameterValues";
 import Input from "./Input";
-import { InventoryEntryPMod, PartReference } from "./InventoryEntry";
+import { InventoryEntryPMod } from "./InventoryEntry";
 import { LocationParameterDefinition, SelectLocation } from "./Location";
+import { LinkToPart } from "./Part";
 import { useStateAndBind } from "./useBinding";
 import { useObservable } from "./useData";
 import WithData from "./WithData";
-
-export function LinkToPart({ part }: { part: PartReference }) {
-  return (
-    <a href={`/parts/${part.id}`} target="_blank" rel="noopener noreferrer">
-      {part.name}
-    </a>
-  );
-}
 
 export default function InventoryEntriesPage() {
   const [refreshListObservable, refreshList] = useObservable();

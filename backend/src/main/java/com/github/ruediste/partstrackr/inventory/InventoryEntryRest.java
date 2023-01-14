@@ -135,10 +135,7 @@ public class InventoryEntryRest {
 		}
 
 		if (entry.parameterValues != null)
-			pMod.parameterValuesDescription = entry.parameterValues.stream()
-					.sorted(Comparator.comparing(x -> x.definition.name))
-					.map(x -> x.definition.name + ": " + x.definition.format(x.value))
-					.collect(Collectors.joining((", ")));
+			pMod.parameterValuesDescription = entry.parameterValuesDescription();
 		return pMod;
 	}
 

@@ -1,6 +1,12 @@
 import { useEffect, useRef, useState } from "react";
 import { Button, Card, Form, Table } from "react-bootstrap";
-import { useNavigate, useParams, useRoutes } from "react-router-dom";
+import {
+  Navigate,
+  NavLink,
+  useNavigate,
+  useParams,
+  useRoutes,
+} from "react-router-dom";
 import { toast } from "react-toastify";
 import { EditList } from "./EditList";
 import { EditParameterDefinitions } from "./EditParameterDefinitions";
@@ -9,6 +15,7 @@ import Input, { Select } from "./Input";
 import { InventoryEntryPMod } from "./InventoryEntry";
 import { SelectLocation } from "./Location";
 import PartPMod, { PartList, PartListItem } from "./Part";
+import PartsBrowsePage from "./PartsBrowsePage";
 import { Observable, post, req, useObservable } from "./useData";
 import WithData from "./WithData";
 import { RenderEdit, WithEdit } from "./WithEdit";
@@ -21,6 +28,19 @@ interface PartPageCtx {
 }
 
 export default function PartsPage() {
+  return useRoutes([
+    {
+      path: "tree/*",
+      element: <PartsTreePage />,
+    },
+    {
+      path: "browse/*",
+      element: <PartsBrowsePage />,
+    },
+    { path: "*", element: <Navigate to="tree" /> },
+  ]);
+}
+function PartsTreePage() {
   const navigate = useNavigate();
   const navigateToPart = (id?: number) => navigate("" + (id ?? ""));
   return useRoutes([
@@ -175,6 +195,10 @@ function PartsPageInner({
             >
               <i className="bi bi-plus-circle"></i>
             </Button>
+            <NavLink className="btn btn-link" to="/parts/browse" role="button">
+              Browse
+            </NavLink>
+
             <DisplayPartList
               ctx={ctx}
               refreshSubtree={trigger}
@@ -185,12 +209,23 @@ function PartsPageInner({
           </div>
           {edit === undefined ? null : (
             <div style={{ flex: "0 0 50%" }}>
+              <Button
+                variant="primary"
+                onClick={() => {
+                  setEdit(undefined);
+                }}
+              >
+                Close
+              </Button>
+              <NavLink
+                className="btn btn-link"
+                to={"/parts/browse/" + +edit.id}
+                role="button"
+              >
+                Browse
+              </NavLink>
               <EditPart
                 {...edit}
-                close={() => {
-                  navigateToPart();
-                  return setEdit(undefined);
-                }}
                 refreshDocuments={refreshDocumentsObservable}
               />
             </div>
@@ -357,12 +392,10 @@ function DisplayPartListItem({
 }
 
 export function EditPart({
-  close,
   id,
   onModified,
   refreshDocuments,
 }: {
-  close: () => void;
   onModified: () => void;
   id: number;
   refreshDocuments: Observable;
@@ -374,9 +407,6 @@ export function EditPart({
       onSuccess={onModified}
       render={({ bind, value }) => (
         <div>
-          <Button variant="secondary" onClick={() => close()}>
-            Close
-          </Button>
           <br />
           {value.nameSetByParameterDefinition ? null : (
             <Input label="Name" {...bind("name")} />
@@ -610,7 +640,7 @@ function EditDocuments({ url, refresh }: { url: string; refresh: Observable }) {
                             alignItems: "center",
                             height: "100%",
                           }}
-                          href={"/api/document/" + doc.id + "/" + doc.fileName}
+                          href={"/api/document/" + doc.id + "/" + doc.name}
                           target="_blank"
                           rel="noreferrer"
                         >
@@ -659,7 +689,10 @@ function EditDocuments({ url, refresh }: { url: string; refresh: Observable }) {
             }}
           >
             {documents
-              .filter((doc) => doc.mimeType === "image/jpeg")
+              .filter(
+                (doc) =>
+                  doc.mimeType === "image/jpeg" || doc.mimeType === "image/webp"
+              )
               .map((doc) => (
                 <div key={doc.id} className="card" style={{ width: "18rem" }}>
                   <img
@@ -668,7 +701,19 @@ function EditDocuments({ url, refresh }: { url: string; refresh: Observable }) {
                     src={"/api/document/" + doc.id + "/" + doc.fileName}
                   />
                   <div className="card-body">
-                    <p className="card-text">{doc.name}</p>
+                    <p className="card-text">
+                      {doc.name}
+                      <Button
+                        variant="secondary"
+                        onClick={() => {
+                          post("api/document/" + doc.id + "/_scaleDown")
+                            .success("Image Scaled Down")
+                            .send();
+                        }}
+                      >
+                        <i className="bi bi-arrow-down-right-circle"></i>
+                      </Button>
+                    </p>
                   </div>
                 </div>
               ))}

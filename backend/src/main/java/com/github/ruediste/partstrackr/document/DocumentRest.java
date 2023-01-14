@@ -59,6 +59,12 @@ public class DocumentRest {
 	}
 
 	@POST
+	@Path("{id}/_scaleDown")
+	public void scaleDown(@PathParam("id") long id) {
+		service.scaleDown(id);
+	}
+
+	@POST
 	@Path("_updateAllPrimaryPhotos")
 	public void updateAllPrimaryPhotos() {
 		Long lastId = null;

@@ -20,6 +20,8 @@ import org.springframework.stereotype.Component;
 
 import com.github.ruediste.partstrackr.part.Part;
 
+import javaxt.io.Image;
+
 @Component
 public class DocumentService {
 
@@ -87,6 +89,20 @@ public class DocumentService {
 		return doc;
 	}
 
+	public void scaleDown(long id) {
+		try {
+			var doc = em.find(Document.class, id);
+			var path = getFilePath(doc);
+			Image image = new Image(path.toFile());
+			image.rotate();// Auto-rotate based on Exif Orientation tag, and remove all Exif tags
+			image.resize(640, 480, true);
+			image.setOutputQuality(0.9f);
+			image.saveAs(path.toFile());
+		} catch (Exception e) {
+			throw new RuntimeException(e);
+		}
+	}
+
 	public void deleteDocument(long id) {
 		var doc = em.find(Document.class, id);
 		var path = getFilePath(doc);
@@ -122,7 +138,7 @@ public class DocumentService {
 		var primaryPhotos = part.documents.stream().filter(x -> x.primaryPhoto).toList();
 		if (primaryPhotos.isEmpty()) {
 			part.documents.stream()
-					.filter(x -> List.of("image/jpg", "image/jpeg").contains(x.mimeType.toLowerCase(Locale.ENGLISH)))
+					.filter(x -> List.of("image/webp", "image/jpeg").contains(x.mimeType.toLowerCase(Locale.ENGLISH)))
 					.findFirst().ifPresent(x -> x.primaryPhoto = true);
 		}
 
