@@ -48,8 +48,8 @@ public class DocumentRest {
 			if (doc.primaryPhoto)
 				entity.part.documents.forEach(d -> d.primaryPhoto = false);
 			entity.primaryPhoto = doc.primaryPhoto;
-			service.updatePrimaryPhoto(entity);
 		}
+		service.updatePrimaryPhoto(entity);
 	}
 
 	@DELETE

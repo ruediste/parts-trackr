@@ -147,7 +147,6 @@ function PartsPageInner({
             marginRight: "4px",
           }}
           onDrop={(ev) => {
-            console.log(ev.dataTransfer.items);
             ev.preventDefault();
             setDragHovering(false);
             dragEnterCount.current = 0;
@@ -155,6 +154,7 @@ function PartsPageInner({
             if (edit === undefined) return;
 
             if (ev.dataTransfer.items) {
+              console.log("File Drop: got Items");
               // Use DataTransferItemList interface to access the file(s)
               for (let i = 0; i < ev.dataTransfer.items.length; i++) {
                 const item = ev.dataTransfer.items[i];
@@ -165,6 +165,7 @@ function PartsPageInner({
                 }
               }
             } else {
+              console.log("File Drop: got files");
               // Use DataTransfer interface to access the file(s)
               for (let i = 0; i < ev.dataTransfer.files.length; i++) {
                 const file = ev.dataTransfer.files[i];
@@ -294,6 +295,7 @@ function DisplayPartListItem({
   refreshSiblings: () => void;
   refreshParent: () => void;
 }) {
+  const [dragging, setIsDragging] = useState(false);
   const [refreshChildrenObservable, refreshChildren] = useObservable();
   const [expanded, setExpanded] = useState(part.children !== null);
   useEffect(() => {
@@ -316,6 +318,35 @@ function DisplayPartListItem({
             ? () => setExpanded((x) => !x)
             : () => ctx.edit(part.id, editRefresh)
         }
+        draggable={true}
+        onDragStart={(e) => {
+          e.dataTransfer.setData("application/parts-trackr/part", "" + part.id);
+          e.dataTransfer.effectAllowed = "move";
+        }}
+        onDragOver={(e) => {
+          e.preventDefault();
+        }}
+        onDragEnter={(e) => {
+          if (!e.dataTransfer.types.includes("application/parts-trackr/part"))
+            return;
+          e.preventDefault();
+          setIsDragging(true);
+        }}
+        onDragLeave={(e) => setIsDragging(false)}
+        onDrop={(e) => {
+          const droppedId = e.dataTransfer.getData(
+            "application/parts-trackr/part"
+          );
+          if (droppedId === undefined) return;
+
+          setIsDragging(false);
+          e.preventDefault();
+          e.stopPropagation();
+          post("api/part/" + droppedId + "/_setParent?parent=" + part.id)
+            .success("Part Moved")
+            .send();
+        }}
+        style={{ backgroundColor: dragging ? "lightblue" : undefined }}
       >
         <td style={{ width: 0 }}>
           {part.hasChildren ? (
@@ -623,6 +654,7 @@ function EditDocuments({ url, refresh }: { url: string; refresh: Observable }) {
             <tbody>
               {documents.map((doc) => (
                 <RenderEdit<PartDocument>
+                  key={doc.id}
                   value={doc}
                   url={"api/document/" + doc.id}
                   onSuccess={refresh}

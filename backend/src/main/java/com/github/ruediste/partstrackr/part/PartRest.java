@@ -234,6 +234,28 @@ public class PartRest {
 		return toPMod(part);
 	}
 
+	@POST
+	@Path("{id}/_setParent")
+	public PartPMod setParent(@PathParam("id") long id, @QueryParam("parent") long newParentId) {
+		var part = em.find(Part.class, id);
+		if (id == newParentId)
+			return toPMod(part);
+
+		Part newParent = em.find(Part.class, newParentId);
+
+		// to avoid loops, remove part from ancestors of new parent if applicable
+		Part p = newParent;
+		while (p != null) {
+			if (p.parent == part) {
+				p.parent = part.parent;
+			}
+			p = p.parent;
+		}
+
+		part.parent = newParent;
+		return toPMod(part);
+	}
+
 	@DELETE
 	@Path("{id}")
 	public void delete(@PathParam("id") long id) {

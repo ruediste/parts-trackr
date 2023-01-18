@@ -62,6 +62,7 @@ public class DocumentService {
 		doc.mimeType = switch (extension) {
 		case "pdf" -> "application/pdf";
 		case "jpg", "jpeg" -> "image/jpeg";
+		case "webp" -> "image/webp";
 		case "json" -> MediaType.APPLICATION_JSON + ";charset=utf-8";
 		case "txt" -> MediaType.TEXT_PLAIN + ";charset=utf-8";
 		case "html" -> MediaType.TEXT_HTML + ";charset=utf-8";
