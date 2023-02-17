@@ -5,6 +5,7 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 import javax.persistence.Entity;
+import javax.persistence.EntityManager;
 import javax.persistence.FetchType;
 import javax.persistence.GeneratedValue;
 import javax.persistence.GenerationType;
@@ -35,5 +36,27 @@ public class InventoryEntry {
 	public String parameterValuesDescription() {
 		return parameterValues.stream().sorted(Comparator.comparing(x -> x.definition.name))
 				.map(x -> x.definition.name + ": " + x.definition.format(x.value)).collect(Collectors.joining((", ")));
+	}
+
+	public void setLocation(EntityManager em, Long locationId) {
+		if (locationId == null) {
+			location = null;
+			parameterValues.forEach(em::remove);
+			parameterValues.clear();
+			return;
+		}
+
+		if (location == null || location.id != locationId) {
+			location = em.find(Location.class, locationId);
+			parameterValues.forEach(em::remove);
+			parameterValues.clear();
+			for (var def : location.parameterDefinitions) {
+				var pv = new LocationParameterValue();
+				pv.definition = def;
+				pv.entry = this;
+				em.persist(pv);
+				parameterValues.add(pv);
+			}
+		}
 	}
 }

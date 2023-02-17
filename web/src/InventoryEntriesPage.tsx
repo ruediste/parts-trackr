@@ -14,6 +14,7 @@ import WithData from "./WithData";
 
 export default function InventoryEntriesPage() {
   const [refreshListObservable, refreshList] = useObservable();
+  const [refreshParameterValues$, refreshParameterValues] = useObservable();
   const [locationId, , { binding: bindLocationId }] = useStateAndBind<
     number | null
   >(null);
@@ -97,6 +98,7 @@ export default function InventoryEntriesPage() {
           parameterValues: JSON.stringify(parameterValues),
         }}
         refresh={refreshListObservable}
+        onPostSave={() => refreshParameterValues()}
         renderEdit={({ bind, value }) => (
           <Form>
             <Input type="number" label="Count" {...bind("count")} />
@@ -105,6 +107,7 @@ export default function InventoryEntriesPage() {
             <Form.Label>Parameter Values</Form.Label>
             <EditParameterValues
               url={"api/inventoryEntry/" + value.id + "/parameterValue"}
+              refresh={refreshParameterValues$}
               onModified={() => refreshList()}
             />
           </Form>

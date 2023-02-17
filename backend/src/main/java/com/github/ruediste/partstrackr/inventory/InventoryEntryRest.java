@@ -119,6 +119,16 @@ public class InventoryEntryRest {
 		return toPMod(em.find(InventoryEntry.class, id));
 	}
 
+	@POST
+	@Path("{id}")
+	public void update(@PathParam("id") long id, InventoryEntryPMod pMod) {
+		var entity = em.find(InventoryEntry.class, id);
+		entity.count = pMod.count;
+		if (pMod.locationId != null) {
+			entity.setLocation(em, pMod.locationId);
+		}
+	}
+
 	public InventoryEntryPMod toPMod(InventoryEntry entry) {
 		var pMod = new InventoryEntryPMod();
 		pMod.id = entry.id;

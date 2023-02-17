@@ -35,8 +35,6 @@ import com.github.ruediste.partstrackr.inventory.InventoryEntry;
 import com.github.ruediste.partstrackr.inventory.InventoryEntryRest;
 import com.github.ruediste.partstrackr.inventory.InventoryEntryRest.InventoryEntryPMod;
 import com.github.ruediste.partstrackr.inventory.InventoryEntryRest.PartReference;
-import com.github.ruediste.partstrackr.inventory.LocationParameterValue;
-import com.github.ruediste.partstrackr.location.Location;
 
 @Component
 @Transactional
@@ -436,17 +434,7 @@ public class PartRest {
 	private void updateEntry(InventoryEntry entry, InventoryEntryPMod pMod) {
 		entry.count = pMod.count;
 		if (pMod.locationId != null) {
-			boolean modified = entry.location == null || entry.location.id != pMod.locationId;
-			entry.location = em.find(Location.class, pMod.locationId);
-			if (modified) {
-				entry.parameterValues.forEach(em::remove);
-				for (var def : entry.location.parameterDefinitions) {
-					var pv = new LocationParameterValue();
-					pv.definition = def;
-					pv.entry = entry;
-					em.persist(pv);
-				}
-			}
+			entry.setLocation(em, pMod.locationId);
 		}
 	}
 
