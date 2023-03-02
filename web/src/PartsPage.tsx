@@ -723,7 +723,9 @@ function EditDocuments({ url, refresh }: { url: string; refresh: Observable }) {
             {documents
               .filter(
                 (doc) =>
-                  doc.mimeType === "image/jpeg" || doc.mimeType === "image/webp"
+                  doc.mimeType === "image/jpeg" ||
+                  doc.mimeType === "image/webp" ||
+                  doc.mimeType === "image/png"
               )
               .map((doc) => (
                 <div key={doc.id} className="card" style={{ width: "18rem" }}>

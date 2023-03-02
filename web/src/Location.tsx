@@ -14,7 +14,8 @@ export type Unit =
   | "OHM"
   | "FARAD"
   | "HENRY"
-  | "HERZ";
+  | "HERZ"
+  | "BYTE";
 
 export interface ParameterDefinitionBase {
   id: number;

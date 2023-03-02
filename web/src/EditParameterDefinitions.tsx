@@ -62,6 +62,7 @@ export function EditParameterDefinitions<T extends ParameterDefinitionBase>({
                     { label: "Farad", value: "FARAD" },
                     { label: "Henry", value: "HENRY" },
                     { label: "Herz", value: "HERZ" },
+                    { label: "Byte", value: "BYTE" },
                   ]}
                 />
               </>

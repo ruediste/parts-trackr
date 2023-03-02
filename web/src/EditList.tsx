@@ -8,6 +8,9 @@ interface EditListColumn<T> {
   label: string;
   render: (item: T) => ReactNode;
 }
+
+type MultiEditSelection<TListItem> = "all" | Set<TListItem>;
+
 export function EditList<
   TListItem extends { id: number | null },
   TEdit
@@ -21,14 +24,25 @@ export function EditList<
   refresh?: Observable;
   queryParams?: QueryStringObj;
   horizontal?: boolean;
+  renderMultiEdit?: (args: {
+    selection: MultiEditSelection<TListItem>;
+    refresh: () => void;
+    close: () => void;
+  }) => JSX.Element;
 }) {
   const [selected, setSelected] = useState<number>();
+  const [multiSelection, setMultiSelection] = useState(
+    new Set() as MultiEditSelection<TListItem>
+  );
 
   useEffect(() => {
     setSelected(undefined);
   }, [props.url]);
 
   const horizontal = props.horizontal === true;
+  const hasMultiEdit = props.renderMultiEdit !== undefined;
+  const multiSelectionEmpty =
+    !hasMultiEdit || (multiSelection !== "all" && multiSelection.size == 0);
 
   return (
     <WithData<TListItem[]>
@@ -54,6 +68,27 @@ export function EditList<
             >
               <thead>
                 <tr>
+                  {!hasMultiEdit ? null : (
+                    <th>
+                      {multiSelection === "all" ? (
+                        <i
+                          className="bi bi-check-square"
+                          onClick={() => {
+                            setSelected(undefined);
+                            setMultiSelection(new Set());
+                          }}
+                        ></i>
+                      ) : (
+                        <i
+                          className="bi bi-square"
+                          onClick={() => {
+                            setSelected(undefined);
+                            setMultiSelection("all");
+                          }}
+                        ></i>
+                      )}
+                    </th>
+                  )}
                   {props.columns.map((c, idx) => (
                     <th key={idx}>{c.label}</th>
                   ))}
@@ -76,36 +111,73 @@ export function EditList<
                 </tr>
               </thead>
               <tbody>
-                {listItems.map((p, idx) => (
-                  <tr
-                    className={selected === p.id ? "table-active" : undefined}
-                    key={idx}
-                    onClick={() => {
-                      if (p.id != null) setSelected(p.id);
-                    }}
-                  >
-                    {props.columns.map((c, idx) => (
-                      <td key={idx}>{c.render(p)}</td>
-                    ))}
-                    <td>
-                      <Button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setSelected(undefined);
-                          req(props.url + "/" + p.id)
-                            .method("DELETE")
-                            .success(refresh)
-                            .send();
-                        }}
-                      >
-                        <i className="bi bi-trash"></i>{" "}
-                      </Button>
-                    </td>
-                  </tr>
-                ))}
+                {listItems.map((p, idx) => {
+                  const toggleMultiSelection = () => {
+                    setSelected(undefined);
+                    setMultiSelection((x) => {
+                      if (multiSelection === "all" || multiSelection.has(p)) {
+                        const result = new Set(x === "all" ? listItems : x);
+                        result.delete(p);
+                        return result;
+                      } else {
+                        const result = new Set(x as Set<TListItem>);
+                        result.add(p);
+                        return result;
+                      }
+                    });
+                  };
+                  return (
+                    <tr
+                      className={
+                        selected === p.id ||
+                        multiSelection == "all" ||
+                        multiSelection.has(p)
+                          ? "table-active"
+                          : undefined
+                      }
+                      key={idx}
+                      onClick={() => {
+                        if (!multiSelectionEmpty) toggleMultiSelection();
+                        else if (p.id != null) setSelected(p.id);
+                      }}
+                    >
+                      {!hasMultiEdit ? null : (
+                        <td
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            toggleMultiSelection();
+                          }}
+                        >
+                          {multiSelection === "all" || multiSelection.has(p) ? (
+                            <i className="bi bi-check-square"></i>
+                          ) : (
+                            <i className="bi bi-square"></i>
+                          )}
+                        </td>
+                      )}
+                      {props.columns.map((c, idx) => (
+                        <td key={idx}>{c.render(p)}</td>
+                      ))}
+                      <td>
+                        <Button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSelected(undefined);
+                            req(props.url + "/" + p.id)
+                              .method("DELETE")
+                              .success(refresh)
+                              .send();
+                          }}
+                        >
+                          <i className="bi bi-trash"></i>{" "}
+                        </Button>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </Table>
-            {selected === undefined ? null : (
+            {selected === undefined || !multiSelectionEmpty ? null : (
               <div
                 style={{
                   flex: horizontal ? "0 0 50%" : undefined,
@@ -127,6 +199,28 @@ export function EditList<
                     </>
                   )}
                 />
+              </div>
+            )}
+            {multiSelectionEmpty ? null : (
+              <div
+                style={{
+                  flex: horizontal ? "0 0 50%" : undefined,
+                }}
+              >
+                <Button
+                  variant="secondary"
+                  onClick={() => setMultiSelection(new Set())}
+                  style={{ marginRight: "8px" }}
+                >
+                  {" "}
+                  Close{" "}
+                </Button>
+
+                {props.renderMultiEdit!({
+                  selection: multiSelection,
+                  refresh,
+                  close: () => setMultiSelection(new Set()),
+                })}
               </div>
             )}
           </div>
