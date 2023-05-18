@@ -7,6 +7,8 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.stream.Collectors;
@@ -60,13 +62,14 @@ public class DocumentService {
 			}
 		}
 		doc.mimeType = switch (extension) {
-		case "pdf" -> "application/pdf";
-		case "jpg", "jpeg" -> "image/jpeg";
-		case "webp" -> "image/webp";
-		case "json" -> MediaType.APPLICATION_JSON + ";charset=utf-8";
-		case "txt" -> MediaType.TEXT_PLAIN + ";charset=utf-8";
-		case "html" -> MediaType.TEXT_HTML + ";charset=utf-8";
-		default -> MediaType.APPLICATION_OCTET_STREAM;
+			case "pdf" -> "application/pdf";
+			case "jpg", "jpeg" -> "image/jpeg";
+			case "png", "PNG" -> "image/png";
+			case "webp" -> "image/webp";
+			case "json" -> MediaType.APPLICATION_JSON + ";charset=utf-8";
+			case "txt" -> MediaType.TEXT_PLAIN + ";charset=utf-8";
+			case "html" -> MediaType.TEXT_HTML + ";charset=utf-8";
+			default -> MediaType.APPLICATION_OCTET_STREAM;
 		};
 
 		updatePrimaryPhoto(doc);
@@ -75,14 +78,14 @@ public class DocumentService {
 		var path = getFilePath(doc);
 
 		try {
-			Files.createDirectories(path.getParent());
+			createDirectories(path.getParent());
 		} catch (IOException e) {
 			throw new RuntimeException("Error while creating directory " + path.getParent().toAbsolutePath(), e);
 		}
 
 		try {
-			Files.createDirectories(path.getParent());
 			Files.copy(body, path);
+			Files.setOwner(path, Files.getOwner(path.getParent()));
 		} catch (IOException e) {
 			throw new RuntimeException("Error while uploading to " + path.toAbsolutePath(), e);
 		}
@@ -99,6 +102,7 @@ public class DocumentService {
 			image.resize(640, 480, true);
 			image.setOutputQuality(0.9f);
 			image.saveAs(path.toFile());
+			Files.setOwner(path, Files.getOwner(path.getParent()));
 		} catch (Exception e) {
 			throw new RuntimeException(e);
 		}
@@ -145,6 +149,24 @@ public class DocumentService {
 
 		if (primaryPhotos.size() > 1) {
 			primaryPhotos.stream().skip(1).forEach(x -> x.primaryPhoto = false);
+		}
+	}
+
+	private void createDirectories(Path targetDirectory) throws IOException {
+		List<Path> missingDirectories = new ArrayList<>();
+		{
+			var dir = targetDirectory;
+			while (!Files.exists(dir)) {
+				missingDirectories.add(dir);
+				dir = dir.getParent();
+			}
+		}
+
+		Collections.reverse(missingDirectories);
+
+		for (var dir : missingDirectories) {
+			Files.createDirectory(dir);
+			Files.setOwner(dir, Files.getOwner(dir.getParent()));
 		}
 	}
 }

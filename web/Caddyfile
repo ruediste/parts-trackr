@@ -1,0 +1,13 @@
+http://:8080 {
+    encode gzip
+    
+    handle /api/* {
+		reverse_proxy backend:8081
+	}
+
+    handle {
+        root * /app
+        try_files {path} /index.html
+        file_server
+    }
+}

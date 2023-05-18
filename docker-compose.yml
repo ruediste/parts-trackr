@@ -17,3 +17,20 @@ services:
     restart: always
     volumes:
       - ~/Dropbox/partsTrackr/:/backup
+
+  backend:
+    image: parts-tracker
+    build: backend
+    restart: always
+    environment:
+      - SPRING_DATASOURCE_URL=jdbc:mariadb://db/parts
+      - DOCUMENTS_PATH=/data
+    volumes:
+      - ~/Dropbox/partsTrackr/documents:/data
+
+  web:
+    image: parts-tracker-web
+    build: web
+    restart: always
+    ports:
+      - 7080:8080

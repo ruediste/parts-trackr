@@ -195,7 +195,7 @@ public class InventoryEntryRest {
 		}
 
 		if (entries.size() > 10) {
-			throw new RuntimeException("Just safety " + entries.size());
+			// throw new RuntimeException("Just safety " + entries.size());
 		}
 
 		var newLocation = em.find(Location.class, args.values.locationId);
