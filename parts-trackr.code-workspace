@@ -1,23 +1,26 @@
 {
-	"folders": [
-		{
-			"path": "backend"
-		},
-		{
-			"path": "web"
-		}
-	],
-	"settings": {
-		"java.compile.nullAnalysis.mode": "automatic",
-		"java.format.settings.url": ".vscode/java-formatter.xml",
-		"[java]": {
-			"editor.detectIndentation": false,
-			"editor.insertSpaces": false
-		},
-		"editor.codeActionsOnSave": {
-			"source.fixAll": true,
-			"source.organizeImports": true
-		},
-		"java.configuration.updateBuildConfiguration": "automatic"
-	}
+  "folders": [
+    {
+      "path": "backend"
+    },
+    {
+      "path": "web"
+    },
+    {
+      "path": "periodic-backup"
+    }
+  ],
+  "settings": {
+    "java.compile.nullAnalysis.mode": "automatic",
+    "java.format.settings.url": ".vscode/java-formatter.xml",
+    "[java]": {
+      "editor.detectIndentation": false,
+      "editor.insertSpaces": false
+    },
+    "editor.codeActionsOnSave": {
+      "source.fixAll": true,
+      "source.organizeImports": true
+    },
+    "java.configuration.updateBuildConfiguration": "automatic"
+  }
 }

@@ -14,8 +14,11 @@ export type Unit =
   | "OHM"
   | "FARAD"
   | "HENRY"
-  | "HERZ"
-  | "BYTE";
+  | "HERTZ"
+  | "BYTE"
+  | "GRAM"
+  | "DEGREES"
+  | "DEGREES_CELSIUS";
 
 export interface ParameterDefinitionBase {
   id: number;
@@ -51,9 +54,9 @@ export function SelectLocation({
       loadOptions={(inputValue, callback) => {
         req(
           "api/location?name=" +
-            encodeURIComponent(inputValue) +
-            "&maxCount=10" +
-            (value === null ? "" : "&includeId=" + value)
+          encodeURIComponent(inputValue) +
+          "&maxCount=10" +
+          (value === null ? "" : "&includeId=" + value)
         )
           .success((data: LocationPMod[]) => {
             setLocations(data);
@@ -69,12 +72,12 @@ export function SelectLocation({
         value == null
           ? null
           : {
-              value: value,
-              label:
-                locations === undefined
-                  ? ""
-                  : locations.find((x) => x.id === value)?.name ?? "",
-            }
+            value: value,
+            label:
+              locations === undefined
+                ? ""
+                : locations.find((x) => x.id === value)?.name ?? "",
+          }
       }
       onChange={(option) => binding.set(option?.value ?? null)}
     />

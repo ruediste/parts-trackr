@@ -61,8 +61,11 @@ export function EditParameterDefinitions<T extends ParameterDefinitionBase>({
                     { label: "Ohm", value: "OHM" },
                     { label: "Farad", value: "FARAD" },
                     { label: "Henry", value: "HENRY" },
-                    { label: "Herz", value: "HERZ" },
+                    { label: "Hertz", value: "HERTZ" },
                     { label: "Byte", value: "BYTE" },
+                    { label: "Gram", value: "GRAM" },
+                    { label: "Degrees", value: "DEGREES" },
+                    { label: "Deg Celsius", value: "DEGREES_CELSIUS" },
                   ]}
                 />
               </>
