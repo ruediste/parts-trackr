@@ -1,10 +1,9 @@
-version: "3.1"
 services:
   db:
     image: mariadb:10.9
     restart: always
     ports:
-      - 3317:3306
+      - 127.0.0.1:3317:3306
     environment:
       MARIADB_ROOT_PASSWORD: root
       MARIADB_DATABASE: parts
@@ -33,4 +32,4 @@ services:
     build: web
     restart: always
     ports:
-      - 7080:8080
+      - 127.0.0.1:7080:8080
